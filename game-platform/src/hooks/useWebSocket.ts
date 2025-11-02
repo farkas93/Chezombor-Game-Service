@@ -17,12 +17,12 @@ export function useWebSocket() {
     const unsubs: (() => void)[] = [];
 
     unsubs.push(websocketClient.onConnectionStatusChange(setIsConnected));
-    
+
     unsubs.push(websocketClient.onMessage('registered', (payload) => setPlayer(payload.player)));
     unsubs.push(websocketClient.onMessage('game_created', (payload) => setCurrentSession(payload.session)));
     unsubs.push(websocketClient.onMessage('game_start', (payload) => {
-        setCurrentSession(payload.session);
-        setWaitingForOpponent(false);
+      setCurrentSession(payload.session);
+      setWaitingForOpponent(false);
     }));
     unsubs.push(websocketClient.onMessage('game_update', (payload) => setCurrentSession(payload.session)));
     unsubs.push(websocketClient.onMessage('waiting_for_opponent', () => setWaitingForOpponent(true)));
@@ -44,6 +44,7 @@ export function useWebSocket() {
   }, []);
 
   const makeMove = useCallback((sessionId: string, move: any) => {
+    console.log('[useWebSocket] makeMove called with:', { sessionId, move }); // Add this
     websocketClient.sendMessage({ type: 'move', payload: { sessionId, move } });
   }, []);
 

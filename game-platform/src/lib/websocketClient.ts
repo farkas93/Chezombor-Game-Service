@@ -56,10 +56,16 @@ class WebSocketClient {
     }
 
     public sendMessage(message: WSMessage) {
+        console.log('[WSClient] Attempting to send:', message); // Add this
+        console.log('[WSClient] WebSocket state:', this.ws?.readyState); // Add this
+        console.log('[WSClient] WebSocket.OPEN constant:', WebSocket.OPEN); // Add this
+        
         if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
+            console.log('[WSClient] Message sent successfully'); // Add this
         } else {
             console.error('[WSClient] Not connected. Cannot send message.');
+            console.error('[WSClient] Current state:', this.ws?.readyState); // Add this
         }
     }
 

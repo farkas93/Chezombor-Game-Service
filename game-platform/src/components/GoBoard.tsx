@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useWebSocketContext } from '@/providers/WebSocketProvider'; s
+import { useWebSocketContext } from '@/providers/WebSocketProvider';
 import { GameSession } from '@/types';
 import { ArrowLeft, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -15,7 +15,7 @@ interface GoBoardProps {
 
 export function GoBoard({ session }: GoBoardProps) {
     const router = useRouter();
-    const { makeMove, player, currentSession } = useWebSocketContext(); 
+    const { makeMove, player, currentSession } = useWebSocketContext();
     const [hoveredSquare, setHoveredSquare] = useState<{ row: number; col: number } | null>(null);
 
     const board = currentSession?.state?.board || Array(19).fill(null).map(() => Array(19).fill(null));
@@ -29,12 +29,24 @@ export function GoBoard({ session }: GoBoardProps) {
 
 
     const handleSquareClick = (row: number, col: number) => {
-        if (!isMyTurn) return;
-        if (board[row][col] !== null) return; // Square already occupied
+        console.log('[GoBoard] Square clicked:', { row, col }); // Add this
+        console.log('[GoBoard] Is my turn:', isMyTurn); // Add this
+        console.log('[GoBoard] Current turn:', currentTurn); // Add this
+        console.log('[GoBoard] My color:', myColor); // Add this
+        console.log('[GoBoard] Square occupied:', board[row][col]); // Add this
 
+        if (!isMyTurn) {
+            console.log('[GoBoard] Not my turn, ignoring click'); // Add this
+            return;
+        }
+        if (board[row][col] !== null) {
+            console.log('[GoBoard] Square occupied, ignoring click'); // Add this
+            return;
+        }
+
+        console.log('[GoBoard] Making move:', { sessionId: session.id, row, col }); // Add this
         makeMove(session.id, { row, col });
     };
-
     const renderIntersection = (row: number, col: number) => {
         const stone = board[row][col];
         const isHovered = hoveredSquare?.row === row && hoveredSquare?.col === col;
