@@ -18,6 +18,19 @@ export interface GameSession {
   createdAt: Date;
 }
 
+// ADDED: Chess-specific state interface
+export interface ChessState {
+  fen: string;
+  pgn: string;
+  currentTurn: 'white' | 'black';
+  moveHistory: any[];
+  checkmate: boolean;
+  check: boolean;
+  stalemate: boolean;
+  draw: boolean;
+  winner: string | null;
+}
+
 export interface EloRating {
   playerId: string;
   playerName: string;

@@ -75,10 +75,10 @@ app.prepare().then(() => {
               name: message.payload.name,
               type: message.payload.type
             };
-            
+
             db.registerPlayer(player.id, player.name, player.type);
             clients.set(playerId, { ws, player });
-            
+
             ws.send(JSON.stringify({
               type: 'registered',
               payload: { playerId, player }
@@ -144,7 +144,7 @@ app.prepare().then(() => {
               moveSession.state,
               message.payload.move
             );
-            
+
             gameManager.updateGameState(message.payload.sessionId, newState);
 
             moveSession.players.forEach(p => {
@@ -152,9 +152,9 @@ app.prepare().then(() => {
               if (pc) {
                 pc.ws.send(JSON.stringify({
                   type: 'game_update',
-                  payload: { 
+                  payload: {
                     session: gameManager.getSession(message.payload.sessionId),
-                    move: message.payload.move 
+                    move: message.payload.move
                   }
                 }));
               }
@@ -190,7 +190,7 @@ app.prepare().then(() => {
               });
               console.log(`[Server] Player ${joinClient.player.name} joined session ${joinedSession.id}`);
             } else {
-                console.warn(`[Server] Failed to join session ${message.payload.sessionId} for player ${joinClient.player.name}`);
+              console.warn(`[Server] Failed to join session ${message.payload.sessionId} for player ${joinClient.player.name}`);
             }
             break;
 
@@ -213,7 +213,7 @@ app.prepare().then(() => {
     });
 
     ws.on('error', (error) => {
-        console.error(`[Server] WebSocket client error for ${playerId || 'unregistered'}:`, error);
+      console.error(`[Server] WebSocket client error for ${playerId || 'unregistered'}:`, error);
     });
   });
 
@@ -234,16 +234,38 @@ app.prepare().then(() => {
   }
 
   function processChessMove(state, move) {
-    // Simplified chess move (you'd use chess.js library in production)
-    const newState = { ...state };
-    if (move.from && move.to) {
-      const piece = newState.board[move.from.row][move.from.col];
-      newState.board[move.from.row][move.from.col] = ' ';
-      newState.board[move.to.row][move.to.col] = piece;
-      newState.currentTurn = state.currentTurn === 'white' ? 'black' : 'white';
-      newState.moveHistory.push(move);
+    // MODIFIED: Use chess.js for proper move validation
+    const { Chess } = require('chess.js');
+    const chess = new Chess(state.fen);
+
+    try {
+      // Attempt to make the move
+      const result = chess.move({
+        from: move.from,
+        to: move.to,
+        promotion: move.promotion || 'q' // Default to queen promotion
+      });
+
+      if (result) {
+        // Move was valid
+        return {
+          fen: chess.fen(),
+          pgn: chess.pgn(),
+          currentTurn: chess.turn() === 'w' ? 'white' : 'black',
+          moveHistory: chess.history({ verbose: true }),
+          checkmate: chess.isCheckmate(),
+          check: chess.isCheck(),
+          stalemate: chess.isStalemate(),
+          draw: chess.isDraw(),
+          winner: chess.isCheckmate() ? (chess.turn() === 'w' ? 'black' : 'white') : null
+        };
+      }
+    } catch (error) {
+      console.error('[Server] Invalid chess move:', error);
     }
-    return newState;
+
+    // If move was invalid, return current state unchanged
+    return state;
   }
 
   function processGoMove(state, move) {
@@ -252,7 +274,7 @@ app.prepare().then(() => {
       newState.board[move.row][move.col] = state.currentTurn;
       newState.currentTurn = state.currentTurn === 'black' ? 'white' : 'black';
       newState.moveHistory.push(move);
-      
+
       // Check for captures (simplified)
       checkCaptures(newState, move.row, move.col);
     }
@@ -261,9 +283,9 @@ app.prepare().then(() => {
 
   function checkCaptures(state, row, col) {
     // Simplified capture logic - real Go requires flood fill algorithm
-    const directions = [[0,1], [1,0], [0,-1], [-1,0]];
+    const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
     const opponent = state.board[row][col] === 'black' ? 'white' : 'black';
-    
+
     directions.forEach(([dr, dc]) => {
       const nr = row + dr;
       const nc = col + dc;
@@ -280,7 +302,7 @@ app.prepare().then(() => {
 
   function hasLiberties(board, row, col, color) {
     // Simplified - real implementation needs flood fill
-    const directions = [[0,1], [1,0], [0,-1], [-1,0]];
+    const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
     return directions.some(([dr, dc]) => {
       const nr = row + dr;
       const nc = col + dc;
@@ -296,9 +318,9 @@ app.prepare().then(() => {
   function process2048Move(state, move) {
     const newState = { ...state };
     const direction = move.direction;
-    
+
     let moved = false;
-    
+
     // Simplified 2048 logic
     if (direction === 'left') {
       for (let i = 0; i < 4; i++) {
@@ -329,19 +351,19 @@ app.prepare().then(() => {
         }
       }
     }
-    
+
     if (moved) {
       addRandomTile(newState.board);
       newState.gameOver = !canMove(newState.board);
     }
-    
+
     return newState;
   }
 
   function slideRow(row) {
     let moved = false;
     const nonZero = row.filter(x => x !== 0);
-    
+
     for (let i = 0; i < nonZero.length - 1; i++) {
       if (nonZero[i] === nonZero[i + 1]) {
         nonZero[i] *= 2;
@@ -349,16 +371,16 @@ app.prepare().then(() => {
         moved = true;
       }
     }
-    
+
     while (nonZero.length < 4) {
       nonZero.push(0);
     }
-    
+
     for (let i = 0; i < 4; i++) {
       if (row[i] !== nonZero[i]) moved = true;
       row[i] = nonZero[i];
     }
-    
+
     return moved;
   }
 
@@ -389,10 +411,14 @@ app.prepare().then(() => {
   function checkGameEnd(gameType, state) {
     switch (gameType) {
       case 'chess':
-        // Simplified - check for checkmate
-        return state.checkmate ? { winner: state.winner } : null;
+        // MODIFIED: Check chess.js game end conditions
+        if (state.checkmate) {
+          return { winner: state.winner };
+        } else if (state.stalemate || state.draw) {
+          return { winner: 'draw' };
+        }
+        return null;
       case 'go':
-        // Simplified - check for pass/resign
         return state.ended ? { winner: state.winner } : null;
       case '2048':
         return state.gameOver ? { score: state.score } : null;
@@ -415,7 +441,7 @@ app.prepare().then(() => {
       const [player1, player2] = session.players;
       const rating1 = db.getEloRating(player1.id, session.gameType);
       const rating2 = db.getEloRating(player2.id, session.gameType);
-      
+
       let eloResult;
       if (result.winner === player1.id) {
         eloResult = 'a_wins';
@@ -424,20 +450,20 @@ app.prepare().then(() => {
       } else {
         eloResult = 'draw';
       }
-      
+
       const { newRatingA, newRatingB } = eloSystem.calculateNewRatings(
         rating1,
         rating2,
         eloResult
       );
-      
+
       db.updateEloRating(
         player1.id,
         session.gameType,
         newRatingA,
         eloResult === 'a_wins' ? 'win' : eloResult === 'b_wins' ? 'loss' : 'draw'
       );
-      
+
       db.updateEloRating(
         player2.id,
         session.gameType,

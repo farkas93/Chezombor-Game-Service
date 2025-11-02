@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { GameSession, GameType, GameMode, Player } from '@/types';
+import { Chess } from 'chess.js'; // ADDED: Import chess.js
 
 export class GameManager {
   private sessions: Map<string, GameSession> = new Map();
@@ -76,26 +77,19 @@ export class GameManager {
   }
 
   private initChessState() {
+    // MODIFIED: Use chess.js for proper game state
+    const chess = new Chess();
     return {
-      board: this.createChessBoard(),
+      fen: chess.fen(), // FEN string represents the board state
+      pgn: chess.pgn(), // PGN for move history
       currentTurn: 'white',
       moveHistory: [],
       checkmate: false,
+      check: false,
+      stalemate: false,
+      draw: false,
       winner: null
     };
-  }
-
-  private createChessBoard(): string[][] {
-    return [
-      ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
-      ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
-      [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-      [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-      [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-      [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-      ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
-      ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
-    ];
   }
 
   private initGoState() {
@@ -133,5 +127,3 @@ export class GameManager {
     }
   }
 }
-
-module.exports = { GameManager };
