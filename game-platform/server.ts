@@ -8,7 +8,7 @@ import { getDatabase } from './src/lib/database';
 import { EloSystem } from './src/lib/eloSystem';
 import { ChessGame } from './src/lib/games/chess';
 import { GoGame } from './src/lib/games/go';
-import { Game2048 } from './src/lib/games/2048'; 
+import { Game2048 } from './src/lib/games/2048';
 import { Player, GameSession, WSMessage, GameType, GameMode, PlayerType } from './src/types/index';
 
 const dev = process.env.NODE_ENV !== 'production';
@@ -71,7 +71,7 @@ app.prepare().then(() => {
             const newPlayerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const player: Player = {
               id: newPlayerId,
-              name: message.payload.name,
+              name: message.payload.name || 'Ready Player 1', // ADDED: Fallback default
               type: message.payload.type,
             };
 
@@ -99,9 +99,10 @@ app.prepare().then(() => {
             );
 
             if (message.payload.mode === 'local') {
+              const player2Name = message.payload.player2Name || 'Ready Player 2'; // CHANGED: Default
               const localOpponent: Player = {
                 id: `${playerId}_local_opponent`,
-                name: 'Local Opponent',
+                name: player2Name,
                 type: 'human'
               };
               session.players.push(localOpponent);
@@ -222,17 +223,19 @@ app.prepare().then(() => {
   }
 
   function handleGameEnd(session: GameSession, result: any) {
-    if (session.mode !== 'local' && (session.gameType === 'chess' || session.gameType === 'go')) {
+    // MODIFIED: Removed the mode check - save ELO for all chess/go games
+    if (session.gameType === 'chess' || session.gameType === 'go') {
       const [player1, player2] = session.players;
       if (!player1 || !player2) return;
+
+      // ADDED: Register player2 if not already in database (for local games)
+      db.registerPlayer(player2.id, player2.name, player2.type);
 
       const rating1 = db.getEloRating(player1.id, session.gameType);
       const rating2 = db.getEloRating(player2.id, session.gameType);
 
       let eloResult: 'a_wins' | 'b_wins' | 'draw';
       if (result.winner === 'white' || result.winner === 'black') {
-        // For chess: white/black, for go: black/white
-        // Assuming player1 is first color (white for chess, black for go)
         const player1Color = session.gameType === 'chess' ? 'white' : 'black';
         eloResult = result.winner === player1Color ? 'a_wins' : 'b_wins';
       } else {
@@ -243,15 +246,11 @@ app.prepare().then(() => {
 
       db.updateEloRating(player1.id, session.gameType, newRatingA, eloResult === 'a_wins' ? 'win' : (eloResult === 'b_wins' ? 'loss' : 'draw'));
       db.updateEloRating(player2.id, session.gameType, newRatingB, eloResult === 'b_wins' ? 'win' : (eloResult === 'a_wins' ? 'loss' : 'draw'));
+
+      console.log(`[Server] ELO updated - ${player1.name}: ${newRatingA}, ${player2.name}: ${newRatingB}`);
     }
 
-    if (session.gameType === '2048' && session.players[0]) {
-      const player = session.players[0];
-      const score = result.score || 0;
-      db.addHighScore(player.id, player.name, player.type, score);
-      console.log(`[Server] Saved 2048 highscore: ${score} for ${player.name}`);
-    }
-
+    // MODIFIED: Send game_end with result payload
     session.players.forEach(p => {
       const client = clients.get(p.id);
       client?.ws.send(JSON.stringify({

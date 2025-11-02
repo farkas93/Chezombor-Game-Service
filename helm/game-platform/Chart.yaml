@@ -1,0 +1,15 @@
+apiVersion: v2
+name: game-platform
+description: A multi-game platform with Chess, Go, and 2048
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - games
+  - chess
+  - go
+  - 2048
+  - websocket
+maintainers:
+  - name: Your Name
+    email: your.email@example.com

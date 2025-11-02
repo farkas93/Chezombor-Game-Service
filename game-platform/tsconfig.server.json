@@ -2,17 +2,22 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "CommonJS",
+    "moduleResolution": "node",
     "outDir": "dist",
     "noEmit": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noImplicitAny": false,
-    "strict": false
+    "strict": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "server.ts",
     "src/**/*.ts" 
   ],
-  "exclude": ["node_modules"] // Ensure node_modules is excluded, inherited from base but good to be explicit
+  "exclude": ["node_modules"]
 }

@@ -4,7 +4,7 @@ import { EloRating, HighScore, PlayerType } from '@/types';
 export class GameDatabase {
   private db: Database.Database;
 
-  constructor(filename: string = 'games.db') {
+  constructor(filename: string = process.env.DATABASE_PATH || 'games.db') {
     this.db = new Database(filename);
     this.initTables();
   }

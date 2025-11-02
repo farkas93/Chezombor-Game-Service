@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Users, Bot, ArrowLeft, Monitor } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useWebSocketContext } from '@/providers/WebSocketProvider'; 
@@ -13,11 +16,25 @@ interface ModeSelectorProps {
 
 export function ModeSelector({ gameType }: ModeSelectorProps) {
   const router = useRouter();
-  const { createGame } = useWebSocketContext(); 
+  const { createGame, player } = useWebSocketContext();
+  const [showLocalDialog, setShowLocalDialog] = useState(false);
+  const [player2Name, setPlayer2Name] = useState('');
 
-  // MODIFIED: Handle local PvP
   const handleLocalPvP = () => {
-    createGame(gameType, 'local'); // Create a local game session
+    setShowLocalDialog(true);
+  };
+
+  const handleStartLocal = () => {
+    if (!player2Name.trim()) {
+      alert('Please enter Player 2 name');
+      return;
+    }
+    
+    // Store player 2 name in session storage for the game to use
+    sessionStorage.setItem('player2Name', player2Name);
+    
+    createGame(gameType, 'local');
+    setShowLocalDialog(false);
   };
 
   const handlePvAI = () => {
@@ -79,6 +96,42 @@ export function ModeSelector({ gameType }: ModeSelectorProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Local Game Dialog */}
+      <Dialog open={showLocalDialog} onOpenChange={setShowLocalDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Local Multiplayer Setup</DialogTitle>
+            <DialogDescription>
+              Enter the name for Player 2
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Player 1</label>
+              <Input value={player?.name || 'Player 1'} disabled />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Player 2</label>
+              <Input
+                placeholder="Enter Player 2 name"
+                value={player2Name}
+                onChange={(e) => setPlayer2Name(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleStartLocal()}
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowLocalDialog(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleStartLocal} className="flex-1">
+              Start Game
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
