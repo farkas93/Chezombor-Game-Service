@@ -45,10 +45,25 @@ export class GameDatabase {
   }
 
   registerPlayer(id: string, name: string, type: PlayerType) {
-    const stmt = this.db.prepare('INSERT OR REPLACE INTO players (id, name, type) VALUES (?, ?, ?)');
+    // Check if a player with this name already exists
+    const existingPlayer = this.db.prepare('SELECT id FROM players WHERE name = ?').get(name) as { id: string } | undefined;
+
+    if (existingPlayer) {
+      // Player name exists, just return the existing ID (don't insert)
+      return existingPlayer.id;
+    }
+
+    // New player, insert normally
+    const stmt = this.db.prepare('INSERT INTO players (id, name, type) VALUES (?, ?, ?)');
     stmt.run(id, name, type);
+    return id;
   }
 
+  // ADDED: New method to get player by name
+  getPlayerByName(name: string): { id: string; name: string; type: PlayerType } | undefined {
+    const stmt = this.db.prepare('SELECT id, name, type FROM players WHERE name = ?');
+    return stmt.get(name) as { id: string; name: string; type: PlayerType } | undefined;
+  }
   getEloRating(playerId: string, gameType: 'chess' | 'go'): number {
     const stmt = this.db.prepare('SELECT rating FROM elo_ratings WHERE player_id = ? AND game_type = ?');
     const result = stmt.get(playerId, gameType) as { rating: number } | undefined;
@@ -70,11 +85,11 @@ export class GameDatabase {
         losses = losses + ?,
         draws = draws + ?
     `);
-    
+
     const win = result === 'win' ? 1 : 0;
     const loss = result === 'loss' ? 1 : 0;
     const draw = result === 'draw' ? 1 : 0;
-    
+
     stmt.run(playerId, gameType, newRating, win, loss, draw, newRating, win, loss, draw);
   }
 

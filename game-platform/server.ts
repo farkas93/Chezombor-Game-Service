@@ -2,6 +2,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { WebSocketServer, WebSocket, RawData } from 'ws';
+import { cleanupDatabase } from './src/lib/cleanup';
 
 import { GameManager } from './src/lib/gameManager';
 import { getDatabase } from './src/lib/database';
@@ -26,7 +27,15 @@ const clients = new Map<string, { ws: WebSocket; player: Player }>();
 
 app.prepare().then(() => {
   console.log('[Server] Next.js app prepared successfully.');
-
+  
+  try {
+    console.log('[Server] Running database cleanup...');
+    cleanupDatabase(db);
+  } catch (error) {
+    console.error('[Server] Error during database cleanup:', error);
+    // Don't exit - continue with server startup
+  }
+  
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
       const parsedUrl = parse(req.url!, true);
@@ -68,22 +77,40 @@ app.prepare().then(() => {
 
         switch (message.type) {
           case 'register': {
-            const newPlayerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            const player: Player = {
-              id: newPlayerId,
-              name: message.payload.name || 'Ready Player 1', // ADDED: Fallback default
-              type: message.payload.type,
-            };
+            const playerName = message.payload.name || 'Ready Player 1';
 
-            db.registerPlayer(player.id, player.name, player.type);
-            clients.set(newPlayerId, { ws, player });
-            playerId = newPlayerId;
+            // MODIFIED: Check if player already exists by name
+            const existingPlayer = db.getPlayerByName(playerName);
+
+            let player: Player;
+            if (existingPlayer) {
+              // Use existing player data
+              player = {
+                id: existingPlayer.id,
+                name: existingPlayer.name,
+                type: existingPlayer.type,
+              };
+              playerId = existingPlayer.id;
+              console.log(`[Server] Existing player reconnected: ${player.name} (${player.id})`);
+            } else {
+              // Create new player
+              const newPlayerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              player = {
+                id: newPlayerId,
+                name: playerName,
+                type: message.payload.type,
+              };
+              db.registerPlayer(player.id, player.name, player.type);
+              playerId = newPlayerId;
+              console.log(`[Server] New player registered: ${player.name} (${player.id})`);
+            }
+
+            clients.set(playerId, { ws, player });
 
             ws.send(JSON.stringify({
               type: 'registered',
               payload: { player },
             }));
-            console.log(`[Server] Player registered: ${player.name} (${player.id})`);
             break;
           }
 
