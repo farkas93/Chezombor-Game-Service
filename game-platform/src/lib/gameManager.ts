@@ -1,22 +1,42 @@
 import { v4 as uuidv4 } from 'uuid';
 import { GameSession, GameType, GameMode, Player } from '@/types';
-import { Chess } from 'chess.js'; // ADDED: Import chess.js
+import { Chess } from 'chess.js';
+import { ChessGame } from './games/chess';
+import { GoGame } from './games/go';
+import { Game2048 } from './games/2048';
 
 export class GameManager {
   private sessions: Map<string, GameSession> = new Map();
   private waitingPlayers: Map<GameType, Player[]> = new Map();
 
   createSession(gameType: GameType, mode: GameMode, player: Player): GameSession {
+    const sessionId = uuidv4();
+
+    let initialState: any;
+    switch (gameType) {
+      case 'chess':
+        initialState = ChessGame.createInitialState();
+        break;
+      case 'go':
+        initialState = GoGame.createInitialState();
+        break;
+      case '2048':  // ADDED
+        initialState = Game2048.createInitialState();
+        break;
+      default:
+        initialState = {};
+    }
+
     const session: GameSession = {
-      id: uuidv4(),
+      id: sessionId,
       gameType,
       mode,
       players: [player],
-      state: this.initGameState(gameType),
-      createdAt: new Date()
+      state: initialState,
+      createdAt: new Date(),
     };
 
-    this.sessions.set(session.id, session);
+    this.sessions.set(sessionId, session);
     return session;
   }
 

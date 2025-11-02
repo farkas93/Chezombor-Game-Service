@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'; // Add this import
-import { useWebSocketContext } from '@/providers/WebSocketProvider'; 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useWebSocketContext } from '@/providers/WebSocketProvider';
 import { GameSession } from '@/types';
-import { ArrowLeft, Crown, Flag } from 'lucide-react';
+import { ArrowLeft, Crown, Flag, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Chess } from 'chess.js';
 
@@ -17,12 +17,12 @@ interface ChessBoardProps {
 
 export function ChessBoard({ session }: ChessBoardProps) {
   const router = useRouter();
-  const { makeMove, player, currentSession } = useWebSocketContext(); 
+  const { makeMove, player, currentSession } = useWebSocketContext();
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
   const [chess] = useState(() => new Chess());
   const [boardKey, setBoardKey] = useState(0);
-  const [showGameOverDialog, setShowGameOverDialog] = useState(false); // Add this
+  const [showGameOverDialog, setShowGameOverDialog] = useState(false);
 
   const activeSession = currentSession || session;
   const isLocalGame = activeSession.mode === 'local';
@@ -38,24 +38,31 @@ export function ChessBoard({ session }: ChessBoardProps) {
       }
     }
   }, [activeSession?.state?.fen, chess]);
-
-  // ADDED: Show dialog when game ends
+  const handleViewRankings = () => {
+    setShowGameOverDialog(false);
+    router.push('/rankings');
+  };
   useEffect(() => {
     if (activeSession?.state?.checkmate || activeSession?.state?.stalemate || activeSession?.state?.draw) {
       setShowGameOverDialog(true);
     }
   }, [activeSession?.state?.checkmate, activeSession?.state?.stalemate, activeSession?.state?.draw]);
 
+  const handleBackToHome = () => {
+    setShowGameOverDialog(false);
+    router.push('/');
+  };
+
   const handleSquareClick = (square: string) => {
     const piece = chess.get(square as any);
-    
+
     if (selectedSquare) {
       if (possibleMoves.includes(square)) {
         makeMove(activeSession.id, {
           from: selectedSquare,
           to: square
         });
-        
+
         setSelectedSquare(null);
         setPossibleMoves([]);
       } else if (piece && piece.color === chess.turn()) {
@@ -78,11 +85,11 @@ export function ChessBoard({ session }: ChessBoardProps) {
     const rank = 8 - row;
     const square = `${file}${rank}`;
     const piece = chess.get(square as any);
-    
+
     const isLight = (row + col) % 2 === 0;
     const isSelected = selectedSquare === square;
     const isPossibleMove = possibleMoves.includes(square);
-    
+
     let bgColor = isLight ? 'bg-amber-100' : 'bg-amber-700';
     if (isSelected) {
       bgColor = 'bg-yellow-400';
@@ -224,7 +231,7 @@ export function ChessBoard({ session }: ChessBoardProps) {
         </CardContent>
       </Card>
 
-      {/* ADDED: Game Over Dialog */}
+      {/* Game Over Dialog */}
       <Dialog open={showGameOverDialog} onOpenChange={setShowGameOverDialog}>
         <DialogContent>
           <DialogHeader>
@@ -236,11 +243,18 @@ export function ChessBoard({ session }: ChessBoardProps) {
               {gameResult?.description}
             </DialogDescription>
           </div>
-          <div className="flex gap-2 justify-center">
-            <Button onClick={() => router.push('/')} variant="default">
-              Back to Home
-            </Button>
-            <Button onClick={() => setShowGameOverDialog(false)} variant="outline">
+          <div className="flex flex-col gap-2">
+            {/* MODIFIED: Added Rankings button and reorganized layout */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={handleBackToHome} variant="default">
+                Back to Home
+              </Button>
+              <Button onClick={handleViewRankings} variant="default" className="gap-2">
+                <Trophy className="w-4 h-4" />
+                Rankings
+              </Button>
+            </div>
+            <Button onClick={() => setShowGameOverDialog(false)} variant="outline" className="w-full">
               Review Game
             </Button>
           </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useWebSocketContext } from '@/providers/WebSocketProvider';
@@ -15,16 +16,34 @@ interface Game2048Props {
 
 export function Game2048({ session }: Game2048Props) {
   const router = useRouter();
-  const { makeMove, currentSession } = useWebSocketContext();
+  const { makeMove, currentSession, player } = useWebSocketContext();
+  const [boardKey, setBoardKey] = useState(0);
+  const [showGameOverDialog, setShowGameOverDialog] = useState(false);
 
-  const board = currentSession?.state?.board || Array(4).fill(null).map(() => Array(4).fill(0));
-  const score = currentSession?.state?.score || 0;
-  const gameOver = currentSession?.state?.gameOver || false;
+  const activeSession = currentSession || session;
+  const board = activeSession?.state?.board || Array(4).fill(null).map(() => Array(4).fill(0));
+  const score = activeSession?.state?.score || 0;
+  const gameOver = activeSession?.state?.gameOver || false;
+  const won = activeSession?.state?.won || false;
+
+  // Force re-render when board changes
+  useEffect(() => {
+    if (activeSession?.state?.board) {
+      setBoardKey(prev => prev + 1);
+    }
+  }, [JSON.stringify(activeSession?.state?.board)]);
+
+  // Show dialog when game ends
+  useEffect(() => {
+    if (gameOver) {
+      setShowGameOverDialog(true);
+    }
+  }, [gameOver]);
 
   const handleMove = useCallback((direction: string) => {
     if (gameOver) return;
-    makeMove(session.id, { direction });
-  }, [gameOver, makeMove, session.id]);
+    makeMove(activeSession.id, { direction });
+  }, [gameOver, makeMove, activeSession.id]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -44,6 +63,16 @@ export function Game2048({ session }: Game2048Props) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleMove]);
+
+  const handleViewRankings = () => {
+    setShowGameOverDialog(false);
+    router.push('/rankings');
+  };
+
+  const handleBackToHome = () => {
+    setShowGameOverDialog(false);
+    router.push('/');
+  };
 
   const getTileColor = (value: number): string => {
     const colors: { [key: number]: string } = {
@@ -71,6 +100,21 @@ export function Game2048({ session }: Game2048Props) {
     return 'text-4xl';
   };
 
+  const getGameResult = () => {
+    if (gameOver) {
+      return {
+        title: won ? 'You Won! 🎉' : 'Game Over!',
+        description: won 
+          ? `Congratulations! You reached 2048 with a score of ${score}!`
+          : `Final Score: ${score}`,
+        icon: <Trophy className="w-16 h-16 mx-auto mb-4 text-amber-600" />
+      };
+    }
+    return null;
+  };
+
+  const gameResult = getGameResult();
+
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
       <Card className="max-w-2xl w-full">
@@ -96,7 +140,7 @@ export function Game2048({ session }: Game2048Props) {
           </div>
 
           {/* Game Board */}
-          <div className="flex justify-center">
+          <div className="flex justify-center" key={boardKey}>
             <div className="inline-block bg-slate-400 p-4 rounded-lg shadow-2xl">
               <div className="grid grid-cols-4 gap-3">
                 {board.map((row: number[], rowIdx: number) =>
@@ -151,15 +195,12 @@ export function Game2048({ session }: Game2048Props) {
             </div>
           </div>
 
-          {/* Game Over */}
-          {gameOver && (
-            <div className="text-center p-6 bg-red-50 border-2 border-red-200 rounded-lg">
-              <Trophy className="w-12 h-12 mx-auto mb-3 text-red-600" />
-              <p className="font-bold text-2xl mb-2">Game Over!</p>
-              <p className="text-lg mb-4">Final Score: {score}</p>
-              <Button onClick={() => router.push('/')}>
-                Back to Home
-              </Button>
+          {/* Win notification (shown while game continues) */}
+          {won && !gameOver && (
+            <div className="text-center p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+              <Trophy className="w-8 h-8 mx-auto mb-2 text-yellow-600" />
+              <p className="font-bold text-lg">You reached 2048! 🎉</p>
+              <p className="text-sm">Keep playing for a higher score!</p>
             </div>
           )}
 
@@ -171,6 +212,35 @@ export function Game2048({ session }: Game2048Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Game Over Dialog */}
+      <Dialog open={showGameOverDialog} onOpenChange={setShowGameOverDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-2xl text-center">{gameResult?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-4">
+            {gameResult?.icon}
+            <DialogDescription className="text-lg">
+              {gameResult?.description}
+            </DialogDescription>
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={handleBackToHome} variant="default">
+                Back to Home
+              </Button>
+              <Button onClick={handleViewRankings} variant="default" className="gap-2">
+                <Trophy className="w-4 h-4" />
+                Rankings
+              </Button>
+            </div>
+            <Button onClick={() => setShowGameOverDialog(false)} variant="outline" className="w-full">
+              Review Game
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
