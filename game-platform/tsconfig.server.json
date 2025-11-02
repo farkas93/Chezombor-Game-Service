@@ -1,13 +1,18 @@
 {
-  "extends": "./tsconfig.json", // Inherit all settings from your main tsconfig
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "CommonJS", // Key change: Compile to CommonJS for Node.js compatibility
-    "outDir": "dist", // Optional: specify an output directory for the build
-    "noEmit": false // We need to emit JavaScript for the server
+    "module": "CommonJS",
+    "outDir": "dist",
+    "noEmit": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strict": false
   },
   "include": [
-    "server.js", // Include your server entry point
-    "src/lib/**/*.ts", // Include all your server-side library files
-    "src/types/**/*.ts" // Include your shared types
+    "server.ts",
+    "src/lib/**/*.ts",
+    "src/types/**/*.ts"
   ]
 }

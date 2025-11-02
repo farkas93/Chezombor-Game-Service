@@ -1,6 +1,6 @@
 export type GameType = 'chess' | 'go' | '2048';
 export type PlayerType = 'human' | 'ai';
-export type GameMode = 'pvp' | 'pvai';
+export type GameMode = 'pvp' | 'pvai' | 'local'; // ADDED: 'local' mode
 
 export interface Player {
   id: string;
@@ -18,7 +18,6 @@ export interface GameSession {
   createdAt: Date;
 }
 
-// ADDED: Chess-specific state interface
 export interface ChessState {
   fen: string;
   pgn: string;

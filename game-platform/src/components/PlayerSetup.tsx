@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { useWebSocketContext } from '@/providers/WebSocketProvider'; 
 import { User, Bot } from 'lucide-react';
 
 interface PlayerSetupProps {
@@ -15,7 +15,7 @@ interface PlayerSetupProps {
 export function PlayerSetup({ onReady }: PlayerSetupProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<'human' | 'ai'>('human');
-  const { registerPlayer, player, isConnected } = useWebSocket();
+  const { registerPlayer, player, isConnected } = useWebSocketContext(); 
 
   const handleStart = () => {
     if (!name.trim()) {

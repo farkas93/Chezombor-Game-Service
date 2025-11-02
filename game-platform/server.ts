@@ -97,11 +97,21 @@ app.prepare().then(() => {
               clientCreate.player
             );
 
+            // MODIFIED: For local games, add a dummy second player immediately
+            if (message.payload.mode === 'local') {
+              const localPlayer2 = {
+                id: `${playerId}_local_opponent`,
+                name: 'Local Opponent',
+                type: 'human' as const
+              };
+              sessionCreate.players.push(localPlayer2);
+            }
+
             ws.send(JSON.stringify({
               type: 'game_created',
               payload: { session: sessionCreate }
             }));
-            console.log(`[Server] Game created: ${sessionCreate.id} by ${clientCreate.player.name}`);
+            console.log(`[Server] Game created: ${sessionCreate.id} by ${clientCreate.player.name} (mode: ${message.payload.mode})`);
             break;
 
           case 'find_match':

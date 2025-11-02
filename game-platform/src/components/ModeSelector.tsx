@@ -1,23 +1,23 @@
-// src/components/ModeSelector.tsx
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Bot, ArrowLeft } from 'lucide-react';
+import { Users, Bot, ArrowLeft, Monitor } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useWebSocket } from '@/hooks/useWebSocket';
-import { GameType } from '@/types'; // Import GameType
+import { useWebSocketContext } from '@/providers/WebSocketProvider'; 
+import { GameType } from '@/types';
 
 interface ModeSelectorProps {
-  gameType: GameType; // Use GameType for type safety
+  gameType: GameType;
 }
 
 export function ModeSelector({ gameType }: ModeSelectorProps) {
   const router = useRouter();
-  const { createGame, findMatch } = useWebSocket();
+  const { createGame } = useWebSocketContext(); 
 
-  const handlePvP = () => {
-    findMatch(gameType);
+  // MODIFIED: Handle local PvP
+  const handleLocalPvP = () => {
+    createGame(gameType, 'local'); // Create a local game session
   };
 
   const handlePvAI = () => {
@@ -42,19 +42,19 @@ export function ModeSelector({ gameType }: ModeSelectorProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
         {!is2048 && (
-          <Card className="cursor-pointer hover:shadow-lg transition-all" onClick={handlePvP}>
+          <Card className="cursor-pointer hover:shadow-lg transition-all" onClick={handleLocalPvP}>
             <CardHeader>
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
-                <Users className="w-8 h-8 text-white" />
+                <Monitor className="w-8 h-8 text-white" />
               </div>
-              <CardTitle className="text-center">Player vs Player</CardTitle>
+              <CardTitle className="text-center">Local Multiplayer</CardTitle>
               <CardDescription className="text-center">
-                Challenge another human player
+                Play with a friend on the same device (hot-seat)
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button className="w-full" size="lg">
-                Find Match
+                Start Local Game
               </Button>
             </CardContent>
           </Card>
@@ -69,12 +69,12 @@ export function ModeSelector({ gameType }: ModeSelectorProps) {
               {is2048 ? 'Solo Play' : 'Player vs AI'}
             </CardTitle>
             <CardDescription className="text-center">
-              {is2048 ? 'Beat your high score' : 'Play against computer opponent'}
+              {is2048 ? 'Beat your high score' : 'Play against computer opponent (Coming Soon)'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" size="lg" variant="secondary">
-              {is2048 ? 'Start Game' : 'Play vs AI'}
+            <Button className="w-full" size="lg" variant="secondary" disabled={!is2048}>
+              {is2048 ? 'Start Game' : 'Coming Soon'}
             </Button>
           </CardContent>
         </Card>

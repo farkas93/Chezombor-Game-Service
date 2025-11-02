@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PlayerSetup } from '@/components/PlayerSetup';
 import { GameSelector } from '@/components/GameSelector';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -8,6 +8,13 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 export default function Home() {
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const { player, isConnected } = useWebSocket();
+
+  // ADDED: Auto-advance when player is registered
+  useEffect(() => {
+    if (player) {
+      setIsPlayerReady(true);
+    }
+  }, [player]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">

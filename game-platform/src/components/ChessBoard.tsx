@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { useWebSocketContext } from '@/providers/WebSocketProvider'; 
 import { GameSession } from '@/types';
 import { ArrowLeft, Crown, Flag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -16,10 +16,13 @@ interface ChessBoardProps {
 
 export function ChessBoard({ session }: ChessBoardProps) {
   const router = useRouter();
-  const { makeMove, player, currentSession } = useWebSocket();
+  const { makeMove, player, currentSession } = useWebSocketContext(); 
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
   const [chess] = useState(() => new Chess());
+
+  // MODIFIED: Check if this is a local game
+  const isLocalGame = session.mode === 'local';
 
   // Update chess instance when session state changes
   useEffect(() => {
@@ -30,6 +33,10 @@ export function ChessBoard({ session }: ChessBoardProps) {
 
   const handleSquareClick = (square: string) => {
     const piece = chess.get(square as any);
+    
+    // MODIFIED: In local mode, allow both players to move
+    // In online mode, only allow moves for your color
+    const canMove = isLocalGame || (piece && piece.color === (session.players[0]?.id === player?.id ? 'w' : 'b'));
     
     // If a square is already selected, try to move
     if (selectedSquare) {
@@ -99,8 +106,10 @@ export function ChessBoard({ session }: ChessBoardProps) {
     return pieces[type]?.[color] || '';
   };
 
-  const myColor = session.players[0]?.id === player?.id ? 'white' : 'black';
-  const isMyTurn = currentSession?.state?.currentTurn === myColor;
+  // MODIFIED: Display logic for local vs online games
+  const currentTurnColor = currentSession?.state?.currentTurn || 'white';
+  const myColor = isLocalGame ? null : (session.players[0]?.id === player?.id ? 'white' : 'black');
+  const isMyTurn = isLocalGame || currentTurnColor === myColor;
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
@@ -127,19 +136,25 @@ export function ChessBoard({ session }: ChessBoardProps) {
           {/* Player Info */}
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Badge variant={myColor === 'white' ? 'default' : 'secondary'}>
-                {myColor === 'white' ? '♔' : '♚'} You
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                Playing as {myColor}
-              </span>
+              {isLocalGame ? (
+                <Badge variant="outline">
+                  Local Game - Pass & Play
+                </Badge>
+              ) : (
+                <>
+                  <Badge variant={myColor === 'white' ? 'default' : 'secondary'}>
+                    {myColor === 'white' ? '♔' : '♚'} You
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    Playing as {myColor}
+                  </span>
+                </>
+              )}
             </div>
             <div>
-              {isMyTurn ? (
-                <Badge className="bg-green-500">Your Turn</Badge>
-              ) : (
-                <Badge variant="secondary">Opponent's Turn</Badge>
-              )}
+              <Badge className={currentTurnColor === 'white' ? 'bg-slate-100 text-slate-900' : 'bg-slate-900'}>
+                {currentTurnColor === 'white' ? '♔ White' : '♚ Black'} to move
+              </Badge>
             </div>
           </div>
 
@@ -177,7 +192,7 @@ export function ChessBoard({ session }: ChessBoardProps) {
             <div className="text-center p-4 bg-amber-100 rounded-lg">
               <Crown className="w-8 h-8 mx-auto mb-2 text-amber-600" />
               <p className="font-bold text-lg">
-                {currentSession.state.winner === myColor ? 'You Won!' : 'You Lost'}
+                {currentSession.state.winner === 'white' ? '♔ White Wins!' : '♚ Black Wins!'}
               </p>
               <Button className="mt-4" onClick={() => router.push('/')}>
                 Back to Home

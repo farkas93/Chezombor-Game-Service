@@ -1,117 +1,55 @@
+// src/hooks/useWebSocket.ts
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { WSMessage, Player, GameSession } from '@/types';
+import { useEffect, useState, useCallback } from 'react';
+import { Player, GameSession } from '@/types';
+import { websocketClient } from '@/lib/websocketClient'; // Import our new client
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [player, setPlayer] = useState<Player | null>(null);
   const [currentSession, setCurrentSession] = useState<GameSession | null>(null);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const messageHandlers = useRef<Map<string, (payload: any) => void>>(new Map());
 
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/socket`);
-    wsRef.current = ws;
+    // This effect subscribes the component to the websocketClient's events
+    // and cleans up the subscriptions when the component unmounts.
+    const unsubs: (() => void)[] = [];
 
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
-    };
+    unsubs.push(websocketClient.onConnectionStatusChange(setIsConnected));
+    
+    unsubs.push(websocketClient.onMessage('registered', (payload) => setPlayer(payload.player)));
+    unsubs.push(websocketClient.onMessage('game_created', (payload) => setCurrentSession(payload.session)));
+    unsubs.push(websocketClient.onMessage('game_start', (payload) => {
+        setCurrentSession(payload.session);
+        setWaitingForOpponent(false);
+    }));
+    unsubs.push(websocketClient.onMessage('game_update', (payload) => setCurrentSession(payload.session)));
+    unsubs.push(websocketClient.onMessage('waiting_for_opponent', () => setWaitingForOpponent(true)));
+    unsubs.push(websocketClient.onMessage('game_end', () => setCurrentSession(null)));
 
-    ws.onmessage = (event) => {
-      try {
-        const message: WSMessage = JSON.parse(event.data);
-        console.log('Received message:', message);
-
-        // Handle common messages
-        switch (message.type) {
-          case 'registered':
-            setPlayer(message.payload.player);
-            break;
-          case 'game_created':
-            setCurrentSession(message.payload.session);
-            break;
-          case 'game_start':
-            setCurrentSession(message.payload.session);
-            setWaitingForOpponent(false);
-            break;
-          case 'game_update':
-            setCurrentSession(message.payload.session);
-            break;
-          case 'waiting_for_opponent':
-            setWaitingForOpponent(true);
-            break;
-          case 'game_end':
-            setCurrentSession(null);
-            break;
-        }
-
-        // Call custom handlers
-        const handler = messageHandlers.current.get(message.type);
-        if (handler) {
-          handler(message.payload);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-    };
-
+    // Return a cleanup function that unsubscribes from all events
     return () => {
-      ws.close();
+      unsubs.forEach(unsub => unsub());
     };
   }, []);
 
-  const sendMessage = useCallback((message: WSMessage) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
-    }
-  }, []);
-
+  // The action functions now just call the client's sendMessage method
   const registerPlayer = useCallback((name: string, type: 'human' | 'ai') => {
-    sendMessage({
-      type: 'register',
-      payload: { name, type }
-    });
-  }, [sendMessage]);
+    websocketClient.sendMessage({ type: 'register', payload: { name, type } });
+  }, []);
 
   const createGame = useCallback((gameType: string, mode: string) => {
-    sendMessage({
-      type: 'create_game',
-      payload: { gameType, mode }
-    });
-  }, [sendMessage]);
-
-  const findMatch = useCallback((gameType: string) => {
-    sendMessage({
-      type: 'find_match',
-      payload: { gameType }
-    });
-  }, [sendMessage]);
+    websocketClient.sendMessage({ type: 'create_game', payload: { gameType, mode } });
+  }, []);
 
   const makeMove = useCallback((sessionId: string, move: any) => {
-    sendMessage({
-      type: 'move',
-      payload: { sessionId, move }
-    });
-  }, [sendMessage]);
+    websocketClient.sendMessage({ type: 'move', payload: { sessionId, move } });
+  }, []);
 
-  const onMessage = useCallback((type: string, handler: (payload: any) => void) => {
-    messageHandlers.current.set(type, handler);
-    return () => {
-      messageHandlers.current.delete(type);
-    };
+  // No change to findMatch, but let's include it for completeness
+  const findMatch = useCallback((gameType: string) => {
+    websocketClient.sendMessage({ type: 'find_match', payload: { gameType } });
   }, []);
 
   return {
@@ -121,9 +59,7 @@ export function useWebSocket() {
     waitingForOpponent,
     registerPlayer,
     createGame,
-    findMatch,
     makeMove,
-    sendMessage,
-    onMessage
+    findMatch, // Added findMatch back
   };
 }
