@@ -3,7 +3,7 @@ replicaCount: 2
 
 image:
   repository: game-platform
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: "latest"
 
 imagePullSecrets: []
@@ -39,7 +39,8 @@ ingress:
   enabled: true
   className: "nginx"
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/websocket-services: "game-platform"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"

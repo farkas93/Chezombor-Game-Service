@@ -3,7 +3,7 @@ name: game-platform
 description: A multi-game platform with Chess, Go, and 2048
 type: application
 version: 1.0.0
-appVersion: "1.0.0"
+appVersion: "0.0.1"
 keywords:
   - games
   - chess
@@ -11,5 +11,5 @@ keywords:
   - 2048
   - websocket
 maintainers:
-  - name: Your Name
-    email: your.email@example.com
+  - name: Zsombor Kalotay
+    email: zsombor.kalotay@gmx.ch
