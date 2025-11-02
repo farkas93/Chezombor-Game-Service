@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import { PlayerSetup } from '@/components/PlayerSetup';
 import { GameSelector } from '@/components/GameSelector';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { useWebSocketContext } from '@/providers/WebSocketProvider'; // Changed from useWebSocket
 
 export default function Home() {
   const [isPlayerReady, setIsPlayerReady] = useState(false);
-  const { player, isConnected } = useWebSocket();
+  const { player, isConnected } = useWebSocketContext(); // Changed from useWebSocket
 
-  // ADDED: Auto-advance when player is registered
+  // Auto-advance when player is registered
   useEffect(() => {
     if (player) {
       setIsPlayerReady(true);

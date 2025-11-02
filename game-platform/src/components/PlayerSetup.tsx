@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useWebSocketContext } from '@/providers/WebSocketProvider'; 
-import { User, Bot } from 'lucide-react';
+import { User, Bot, Trophy } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface PlayerSetupProps {
   onReady: () => void;
@@ -16,6 +17,7 @@ export function PlayerSetup({ onReady }: PlayerSetupProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<'human' | 'ai'>('human');
   const { registerPlayer, player, isConnected } = useWebSocketContext(); 
+  const router = useRouter();
 
   const handleStart = () => {
     if (!name.trim()) {
@@ -47,6 +49,15 @@ export function PlayerSetup({ onReady }: PlayerSetupProps) {
           <CardDescription>
             Play Chess, Go, and 2048 with friends or AI
           </CardDescription>
+          <Button
+            onClick={() => router.push('/rankings')}
+            variant="outline"
+            size="lg"
+            className="gap-2"
+          >
+            <Trophy className="w-5 h-5" />
+            Rankings
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">

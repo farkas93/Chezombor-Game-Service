@@ -1,11 +1,11 @@
-// src/components/GameSelector.tsx
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
-import { Trophy, Crown, Grid3x3 } from 'lucide-react';
+import { Trophy, Crown } from 'lucide-react';
+import { useWebSocketContext } from '@/providers/WebSocketProvider';
 
 const games = [
   {
@@ -39,12 +39,27 @@ const games = [
 
 export function GameSelector() {
   const router = useRouter();
+  const { player } = useWebSocketContext();
 
   return (
     <div className="space-y-8">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-2">Select a Game</h1>
-        <p className="text-muted-foreground">Choose your adventure</p>
+      {/* Header with Rankings button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold mb-2">
+            Welcome, {player?.name || 'Player'}! 👋
+          </h1>
+          <p className="text-muted-foreground">Choose a game to play</p>
+        </div>
+        <Button
+          onClick={() => router.push('/rankings')}
+          variant="outline"
+          size="lg"
+          className="gap-2"
+        >
+          <Trophy className="w-5 h-5" />
+          Rankings
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -52,8 +67,7 @@ export function GameSelector() {
           <Card 
             key={game.id}
             className="cursor-pointer hover:shadow-lg transition-all hover:scale-105"
-            // MODIFIED: Use dynamic route for game pages
-            onClick={() => router.push(`/game/${game.id}`)} 
+            onClick={() => router.push(`/game/${game.id}`)}
           >
             <CardHeader>
               <div className={`text-6xl text-center mb-4 p-6 rounded-lg bg-gradient-to-br ${game.color}`}>
@@ -74,24 +88,12 @@ export function GameSelector() {
                   </Badge>
                 )}
               </div>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full">
                 Play Now
               </Button>
             </CardContent>
           </Card>
         ))}
-      </div>
-
-      <div className="flex justify-center">
-        <Button 
-          variant="ghost" 
-          size="lg"
-          onClick={() => router.push('/rankings')}
-          className="gap-2"
-        >
-          <Trophy className="w-5 h-5" />
-          View Rankings & Highscores
-        </Button>
       </div>
     </div>
   );

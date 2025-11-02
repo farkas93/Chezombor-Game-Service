@@ -3,7 +3,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { HighScore } from '@/types';
-import { Trophy, Robot, User } from 'lucide-react';
+import { Trophy, Bot, User } from 'lucide-react';
 
 interface HighscoreTableProps {
   scores: HighScore[];
@@ -59,7 +59,7 @@ export function HighscoreTable({ scores, loading }: HighscoreTableProps) {
               <TableCell>
                 <div className="flex items-center gap-2">
                   {score.playerType === 'ai' ? (
-                    <Robot className="w-4 h-4 text-blue-500" />
+                    <Bot className="w-4 h-4 text-blue-500" />
                   ) : (
                     <User className="w-4 h-4 text-green-500" />
                   )}

@@ -1,4 +1,3 @@
-// src/app/rankings/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,13 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EloRankTable } from '@/components/EloRankTable';
 import { HighscoreTable } from '@/components/HighscoreTable';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Trophy, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { EloRating, HighScore, GameType } from '@/types'; // Import GameType
+import { EloRating, HighScore, GameType } from '@/types';
 
 export default function RankingsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<GameType>('chess'); // Use GameType for activeTab
+  const [activeTab, setActiveTab] = useState<GameType>('chess');
   const [chessRankings, setChessRankings] = useState<EloRating[]>([]);
   const [goRankings, setGoRankings] = useState<EloRating[]>([]);
   const [highscores, setHighscores] = useState<HighScore[]>([]);
@@ -23,9 +22,22 @@ export default function RankingsPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // MODIFIED: All rankings fetched from the same dynamic API route
         const res = await fetch(`/api/rankings/${activeTab}`);
         const data = await res.json();
+        
+        // ADDED: Check if data is an array
+        if (!Array.isArray(data)) {
+          console.error('Rankings API returned non-array:', data);
+          // Set empty array on error
+          if (activeTab === 'chess') {
+            setChessRankings([]);
+          } else if (activeTab === 'go') {
+            setGoRankings([]);
+          } else if (activeTab === '2048') {
+            setHighscores([]);
+          }
+          return;
+        }
         
         if (activeTab === 'chess') {
           setChessRankings(data);
@@ -36,6 +48,14 @@ export default function RankingsPage() {
         }
       } catch (error) {
         console.error('Error fetching rankings:', error);
+        // Set empty arrays on error
+        if (activeTab === 'chess') {
+          setChessRankings([]);
+        } else if (activeTab === 'go') {
+          setGoRankings([]);
+        } else if (activeTab === '2048') {
+          setHighscores([]);
+        }
       } finally {
         setLoading(false);
       }

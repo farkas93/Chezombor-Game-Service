@@ -3,7 +3,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { EloRating } from '@/types';
-import { Crown, Medal, Robot, User } from 'lucide-react';
+import { Crown, Medal, Bot, User } from 'lucide-react';
 
 interface EloRankTableProps {
   rankings: EloRating[];
@@ -69,7 +69,7 @@ export function EloRankTable({ rankings, loading, gameType }: EloRankTableProps)
               <TableCell>
                 <div className="flex items-center gap-2">
                   {rank.playerName.toLowerCase().includes('ai') || rank.playerName.toLowerCase().includes('bot') ? (
-                    <Robot className="w-4 h-4 text-blue-500" />
+                    <Bot className="w-4 h-4 text-blue-500" />
                   ) : (
                     <User className="w-4 h-4 text-green-500" />
                   )}
