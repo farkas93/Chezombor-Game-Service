@@ -1,8 +1,10 @@
 #!/bin/bash
 set -e
 
-NAMESPACE=${1:-default}
+NAMESPACE=${1:-games}
 RELEASE_NAME=${2:-game-platform}
+
+cd ..
 
 echo "Deploying to namespace: ${NAMESPACE}"
 
