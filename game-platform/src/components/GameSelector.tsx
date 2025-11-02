@@ -1,6 +1,6 @@
+// src/components/GameSelector.tsx
 'use client';
 
-import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -52,8 +52,9 @@ export function GameSelector() {
           <Card 
             key={game.id}
             className="cursor-pointer hover:shadow-lg transition-all hover:scale-105"
-            onClick={() => router.push(`/game?type=${game.id}`)}
-            >
+            // MODIFIED: Use dynamic route for game pages
+            onClick={() => router.push(`/game/${game.id}`)} 
+          >
             <CardHeader>
               <div className={`text-6xl text-center mb-4 p-6 rounded-lg bg-gradient-to-br ${game.color}`}>
                 {game.icon}

@@ -1,3 +1,4 @@
+// src/app/rankings/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,11 +9,11 @@ import { HighscoreTable } from '@/components/HighscoreTable';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trophy, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { EloRating, HighScore } from '@/types';
+import { EloRating, HighScore, GameType } from '@/types'; // Import GameType
 
 export default function RankingsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('chess');
+  const [activeTab, setActiveTab] = useState<GameType>('chess'); // Use GameType for activeTab
   const [chessRankings, setChessRankings] = useState<EloRating[]>([]);
   const [goRankings, setGoRankings] = useState<EloRating[]>([]);
   const [highscores, setHighscores] = useState<HighScore[]>([]);
@@ -22,18 +23,15 @@ export default function RankingsPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Fetch data for the active tab
+        // MODIFIED: All rankings fetched from the same dynamic API route
+        const res = await fetch(`/api/rankings/${activeTab}`);
+        const data = await res.json();
+        
         if (activeTab === 'chess') {
-          const res = await fetch('/api/rankings/chess');
-          const data = await res.json();
           setChessRankings(data);
         } else if (activeTab === 'go') {
-          const res = await fetch('/api/rankings/go');
-          const data = await res.json();
           setGoRankings(data);
         } else if (activeTab === '2048') {
-          const res = await fetch('/api/highscores');
-          const data = await res.json();
           setHighscores(data);
         }
       } catch (error) {
@@ -61,7 +59,7 @@ export default function RankingsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as GameType)} className="w-full">
             <TabsList className="grid grid-cols-3 mb-8">
               <TabsTrigger value="chess" className="gap-2">
                 <span className="text-xl">♟️</span> Chess ELO

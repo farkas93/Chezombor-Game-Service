@@ -1,3 +1,4 @@
+// server.js
 const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
@@ -16,29 +17,56 @@ const handle = app.getRequestHandler();
 const gameManager = new GameManager();
 const db = new GameDatabase();
 const eloSystem = new EloSystem();
-const clients = new Map();
+const clients = new Map(); // Map to store connected clients and their player data
 
 app.prepare().then(() => {
+  console.log('[Server] Next.js app prepared successfully.');
+
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true);
+      // Let Next.js handle all non-WebSocket HTTP requests (pages, API routes, static assets)
       await handle(req, res, parsedUrl);
     } catch (err) {
-      console.error('Error occurred handling', req.url, err);
+      console.error('[Server] Error occurred handling HTTP request', req.url, err);
       res.statusCode = 500;
-      res.end('internal server error');
+      res.end('Internal server error');
     }
   });
 
-  const wss = new WebSocketServer({ server, path: '/api/socket' });
+  // Initialize WebSocketServer without immediately attaching it to the HTTP server
+  // We will manually handle the 'upgrade' event to direct WebSocket connections.
+  const wss = new WebSocketServer({ noServer: true });
+  console.log('[Server] WebSocketServer initialized (awaiting upgrade events).');
 
+  // Handle HTTP 'upgrade' requests for WebSocket connections
+  server.on('upgrade', (request, socket, head) => {
+    const { pathname } = parse(request.url, true);
+    console.log(`[Server] Received upgrade request for path: ${pathname}`);
+
+    if (pathname === '/api/socket') {
+      // If the path is for our WebSocket, handle the upgrade
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request); // Emit 'connection' event for the new WebSocket
+        console.log('[Server] WebSocket connection upgraded successfully for /api/socket.');
+      });
+    } else {
+      // For any other upgrade request, destroy the socket
+      console.log(`[Server] Destroying socket for unhandled upgrade path: ${pathname}`);
+      socket.destroy();
+    }
+  });
+
+  // WebSocket server connection handling
   wss.on('connection', (ws) => {
-    let playerId = null;
+    console.log('[Server] A client has established a WebSocket connection!');
+    let playerId = null; // This will be set once the player registers
 
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
-        
+        console.log(`[Server] Received WS message: Type='${message.type}', PlayerID='${playerId || 'unregistered'}'`);
+
         switch (message.type) {
           case 'register':
             playerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -55,29 +83,31 @@ app.prepare().then(() => {
               type: 'registered',
               payload: { playerId, player }
             }));
+            console.log(`[Server] Player registered: ${player.name} (${playerId})`);
             break;
 
           case 'create_game':
-            if (!playerId) return;
-            const client = clients.get(playerId);
-            if (!client) return;
+            if (!playerId) { console.warn('[Server] Attempted create_game without playerId.'); return; }
+            const clientCreate = clients.get(playerId);
+            if (!clientCreate) { console.warn(`[Server] Client not found for playerId: ${playerId}`); return; }
 
-            const session = gameManager.createSession(
+            const sessionCreate = gameManager.createSession(
               message.payload.gameType,
               message.payload.mode,
-              client.player
+              clientCreate.player
             );
 
             ws.send(JSON.stringify({
               type: 'game_created',
-              payload: { session }
+              payload: { session: sessionCreate }
             }));
+            console.log(`[Server] Game created: ${sessionCreate.id} by ${clientCreate.player.name}`);
             break;
 
           case 'find_match':
-            if (!playerId) return;
+            if (!playerId) { console.warn('[Server] Attempted find_match without playerId.'); return; }
             const matchClient = clients.get(playerId);
-            if (!matchClient) return;
+            if (!matchClient) { console.warn(`[Server] Client not found for playerId: ${playerId}`); return; }
 
             const matchedSession = gameManager.findMatch(
               message.payload.gameType,
@@ -94,19 +124,21 @@ app.prepare().then(() => {
                   }));
                 }
               });
+              console.log(`[Server] Match found for ${matchClient.player.name}, session: ${matchedSession.id}`);
             } else {
               ws.send(JSON.stringify({
                 type: 'waiting_for_opponent',
                 payload: {}
               }));
+              console.log(`[Server] ${matchClient.player.name} waiting for opponent in ${message.payload.gameType}`);
             }
             break;
 
           case 'move':
+            if (!playerId) { console.warn('[Server] Attempted move without playerId.'); return; }
             const moveSession = gameManager.getSession(message.payload.sessionId);
-            if (!moveSession) return;
+            if (!moveSession) { console.warn(`[Server] Session not found for move: ${message.payload.sessionId}`); return; }
 
-            // Process move based on game type
             const newState = processMove(
               moveSession.gameType,
               moveSession.state,
@@ -115,7 +147,6 @@ app.prepare().then(() => {
             
             gameManager.updateGameState(message.payload.sessionId, newState);
 
-            // Broadcast to all players
             moveSession.players.forEach(p => {
               const pc = clients.get(p.id);
               if (pc) {
@@ -128,18 +159,19 @@ app.prepare().then(() => {
                 }));
               }
             });
+            console.log(`[Server] Move processed for session ${moveSession.id}`);
 
-            // Check for game end
             const gameResult = checkGameEnd(moveSession.gameType, newState);
             if (gameResult) {
               handleGameEnd(moveSession, gameResult);
+              console.log(`[Server] Game ${moveSession.id} ended. Result:`, gameResult);
             }
             break;
 
           case 'join_game':
-            if (!playerId) return;
+            if (!playerId) { console.warn('[Server] Attempted join_game without playerId.'); return; }
             const joinClient = clients.get(playerId);
-            if (!joinClient) return;
+            if (!joinClient) { console.warn(`[Server] Client not found for playerId: ${playerId}`); return; }
 
             const joinedSession = gameManager.joinSession(
               message.payload.sessionId,
@@ -156,20 +188,36 @@ app.prepare().then(() => {
                   }));
                 }
               });
+              console.log(`[Server] Player ${joinClient.player.name} joined session ${joinedSession.id}`);
+            } else {
+                console.warn(`[Server] Failed to join session ${message.payload.sessionId} for player ${joinClient.player.name}`);
             }
             break;
+
+          default:
+            console.warn(`[Server] Unknown WS message type received: ${message.type}`);
         }
       } catch (error) {
-        console.error('WebSocket error:', error);
+        console.error('[Server] Error processing WebSocket message:', error, 'Raw data:', data.toString());
+        ws.send(JSON.stringify({ type: 'error', payload: { message: 'Invalid message format or server error.' } }));
       }
     });
 
     ws.on('close', () => {
       if (playerId) {
         clients.delete(playerId);
+        console.log(`[Server] Player ${playerId} disconnected.`);
+      } else {
+        console.log('[Server] Unregistered client disconnected.');
       }
     });
+
+    ws.on('error', (error) => {
+        console.error(`[Server] WebSocket client error for ${playerId || 'unregistered'}:`, error);
+    });
   });
+
+  // --- Game Logic Helper Functions (Keep these as they were) ---
 
   function processMove(gameType, state, move) {
     // Game-specific move processing
@@ -412,8 +460,16 @@ app.prepare().then(() => {
     gameManager.endSession(session.id);
   }
 
+  // Start the HTTP server (which will also handle WebSocket upgrades)
   server.listen(port, (err) => {
-    if (err) throw err;
+    if (err) {
+      console.error('[Server] Failed to start HTTP server:', err);
+      process.exit(1);
+    }
     console.log(`> Ready on http://${hostname}:${port}`);
+    console.log(`> WebSocket server expects connections on ws://${hostname}:${port}/api/socket`);
   });
+}).catch((err) => {
+  console.error('[Server] Failed to prepare Next.js app, exiting:', err);
+  process.exit(1); // Exit if Next.js preparation fails
 });

@@ -1,8 +1,7 @@
-// src/app/game/page.tsx
+// src/app/game/[gameType]/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import { ModeSelector } from '@/components/ModeSelector';
 import { ChessBoard } from '@/components/ChessBoard';
 import { GoBoard } from '@/components/GoBoard';
@@ -11,18 +10,20 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { GameType } from '@/types';
+import { useParams, useRouter } from 'next/navigation'; // Import useParams and useRouter
 
 export default function GamePage() {
-  const searchParams = useSearchParams();
+  const params = useParams(); // Get dynamic parameters
   const router = useRouter();
-  const gameType = searchParams.get('type') as GameType;
+  const gameType = params.gameType as GameType; // Access gameType from params
+
   const [showBoard, setShowBoard] = useState(false);
   const { currentSession, waitingForOpponent } = useWebSocket();
 
   useEffect(() => {
-    // Redirect if no game type specified
+    // Basic validation for gameType
     if (!gameType || !['chess', 'go', '2048'].includes(gameType)) {
-      router.push('/');
+      router.push('/'); // Redirect to home if gameType is invalid
     }
   }, [gameType, router]);
 
@@ -32,8 +33,8 @@ export default function GamePage() {
     }
   }, [currentSession]);
 
-  if (!gameType) {
-    return null; // Will redirect in the useEffect
+  if (!gameType || !['chess', 'go', '2048'].includes(gameType)) {
+    return null; // Don't render anything if gameType is invalid, useEffect will redirect
   }
 
   if (waitingForOpponent) {

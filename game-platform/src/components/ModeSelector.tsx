@@ -1,3 +1,4 @@
+// src/components/ModeSelector.tsx
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -5,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Users, Bot, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { GameType } from '@/types'; // Import GameType
 
 interface ModeSelectorProps {
-  gameType: 'chess' | 'go' | '2048';
+  gameType: GameType; // Use GameType for type safety
 }
 
 export function ModeSelector({ gameType }: ModeSelectorProps) {
