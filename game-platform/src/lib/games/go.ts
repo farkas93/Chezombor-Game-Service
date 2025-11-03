@@ -43,6 +43,7 @@ export class GoGame {
     return false;
   }
 
+
   static processMove(state: GoState, move: { row?: number; col?: number; pass?: boolean }): GoState {
     // Handle pass
     if (move.pass) {
@@ -65,23 +66,23 @@ export class GoGame {
     const newBoard = state.board.map(r => [...r]);
     const currentTurn = state.currentTurn;
     const opponentColor = currentTurn === 'black' ? 'white' : 'black';
+    const nextTurn: 'black' | 'white' = currentTurn === 'black' ? 'white' : 'black'; // ADDED: Explicit type
 
     // Place stone
     newBoard[row][col] = currentTurn;
 
-    // Check for captures
+    // Check for captures - ONLY adjacent opponent groups
     let newCaptures = { ...state.captures };
     let capturedStones: [number, number][] = [];
 
-    // IMPORTANT: Only check adjacent opponent groups for immediate capture
     const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
     directions.forEach(([dr, dc]) => {
       const adjRow = row + dr;
       const adjCol = col + dc;
 
       if (this.isInBounds(adjRow, adjCol) && newBoard[adjRow][adjCol] === opponentColor) {
         const group = this.getGroup(newBoard, adjRow, adjCol, opponentColor);
-        // FIXED: Only capture if group has ZERO liberties (completely surrounded)
         if (!this.hasLiberties(newBoard, group)) {
           group.forEach(([r, c]) => {
             newBoard[r][c] = null;
@@ -92,23 +93,24 @@ export class GoGame {
       }
     });
 
-    // Check for suicide (placing a stone with no liberties that doesn't capture)
+    // Check for suicide
     const placedStoneGroup = this.getGroup(newBoard, row, col, currentTurn);
     if (!this.hasLiberties(newBoard, placedStoneGroup) && capturedStones.length === 0) {
       console.warn('[Go] Suicide move attempted');
-      return state; // Invalid move - suicide not allowed
+      return state;
     }
 
-    // Check for Ko rule violation
+    // Ko rule
     let newKoPoint: { row: number; col: number } | null = null;
     if (capturedStones.length === 1 && placedStoneGroup.length === 1) {
       const [capturedRow, capturedCol] = capturedStones[0];
       newKoPoint = { row: capturedRow, col: capturedCol };
     }
 
-    return {
+    // FIXED: Use nextTurn variable with explicit type
+    const newState: GoState = {
       board: newBoard,
-      currentTurn: currentTurn === 'black' ? 'white' : 'black',
+      currentTurn: nextTurn,
       captures: newCaptures,
       moveHistory: [...state.moveHistory, { row, col, color: currentTurn }],
       passCount: 0,
@@ -117,11 +119,24 @@ export class GoGame {
       lastMove: { row, col },
       koPoint: newKoPoint,
     };
+
+    // Check for automatic win conditions
+    const autoWin = this.checkAutoWin(newState);
+    if (autoWin) {
+      return {
+        ...newState,
+        ended: true,
+        winner: autoWin.winner
+      };
+    }
+
+    return newState;
   }
 
-
+  // Also update processPass method with explicit types:
   private static processPass(state: GoState): GoState {
     const newPassCount = state.passCount + 1;
+    const nextTurn: 'black' | 'white' = state.currentTurn === 'black' ? 'white' : 'black'; // ADDED: Explicit type
 
     console.log(`[Go] Player ${state.currentTurn} passed. Pass count: ${newPassCount}`);
 
@@ -135,7 +150,7 @@ export class GoGame {
         passCount: newPassCount,
         ended: true,
         winner,
-        currentTurn: state.currentTurn === 'black' ? 'white' : 'black',
+        currentTurn: nextTurn,
         moveHistory: [...state.moveHistory, {
           row: -1,
           col: -1,
@@ -148,7 +163,7 @@ export class GoGame {
     return {
       ...state,
       passCount: newPassCount,
-      currentTurn: state.currentTurn === 'black' ? 'white' : 'black',
+      currentTurn: nextTurn,
       moveHistory: [...state.moveHistory, {
         row: -1,
         col: -1,
@@ -158,49 +173,124 @@ export class GoGame {
     };
   }
 
+  private static hasLivingStones(state: GoState, color: 'black' | 'white'): boolean {
+    const checked = new Set<string>();
+
+    for (let row = 0; row < this.BOARD_SIZE; row++) {
+      for (let col = 0; col < this.BOARD_SIZE; col++) {
+        const key = `${row},${col}`;
+        if (checked.has(key)) continue;
+
+        if (state.board[row][col] === color) {
+          const group = this.getGroup(state.board, row, col, color);
+          group.forEach(([r, c]) => checked.add(`${r},${c}`));
+
+          // If this group has liberties, player has living stones
+          if (this.hasLiberties(state.board, group)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private static hasAnyLegalMoves(state: GoState, color: 'black' | 'white'): boolean {
+    // Temporarily set the turn to check moves
+    const testState = { ...state, currentTurn: color };
+
+    for (let row = 0; row < this.BOARD_SIZE; row++) {
+      for (let col = 0; col < this.BOARD_SIZE; col++) {
+        if (this.isValidMove(testState, row, col)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private static checkAutoWin(state: GoState): { winner: 'black' | 'white' | 'draw' } | null {
+    // ADDED: Don't check for auto-win in the first few moves
+    if (state.moveHistory.length < 10) {
+      return null; // Need at least 10 moves before checking auto-win
+    }
+
+    // 1. Check if opponent has no stones left on board
+    let blackStones = 0;
+    let whiteStones = 0;
+
+    for (let row = 0; row < this.BOARD_SIZE; row++) {
+      for (let col = 0; col < this.BOARD_SIZE; col++) {
+        if (state.board[row][col] === 'black') blackStones++;
+        if (state.board[row][col] === 'white') whiteStones++;
+      }
+    }
+
+    // Only check if player has NO stones at all (complete elimination)
+    if (blackStones === 0 && whiteStones > 0) {
+      console.log('[Go] Auto-win: White wins - Black has no stones');
+      return { winner: 'white' };
+    }
+    if (whiteStones === 0 && blackStones > 0) {
+      console.log('[Go] Auto-win: Black wins - White has no stones');
+      return { winner: 'black' };
+    }
+
+    // 2. Check if board is completely filled
+    let emptySpaces = 0;
+    for (let row = 0; row < this.BOARD_SIZE; row++) {
+      for (let col = 0; col < this.BOARD_SIZE; col++) {
+        if (state.board[row][col] === null) emptySpaces++;
+      }
+    }
+
+    if (emptySpaces === 0) {
+      console.log('[Go] Board completely filled - scoring game');
+      const winner = this.calculateWinner(state);
+      return { winner };
+    }
+
+    return null;
+  }
+
   private static isValidMove(state: GoState, row: number, col: number): boolean {
-    // Check bounds
     if (!this.isInBounds(row, col)) {
       return false;
     }
 
-    // Check if square is empty
     if (state.board[row][col] !== null) {
       return false;
     }
 
-    // Check Ko rule
     if (state.koPoint && state.koPoint.row === row && state.koPoint.col === col) {
       return false;
     }
 
+    // Create test board
     const testBoard = state.board.map(r => [...r]);
     testBoard[row][col] = state.currentTurn;
 
-    const placedGroup = this.getGroup(testBoard, row, col, state.currentTurn);
-    const hasLibs = this.hasLiberties(testBoard, placedGroup);
+    // Check if move captures opponent stones (makes it legal even if suicide)
+    const opponentColor = state.currentTurn === 'black' ? 'white' : 'black';
+    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
-    if (!hasLibs) {
-      // Check if it captures opponent stones (then it's legal)
-      const opponentColor = state.currentTurn === 'black' ? 'white' : 'black';
-      const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    for (const [dr, dc] of directions) {
+      const adjRow = row + dr;
+      const adjCol = col + dc;
 
-      for (const [dr, dc] of directions) {
-        const adjRow = row + dr;
-        const adjCol = col + dc;
-
-        if (this.isInBounds(adjRow, adjCol) && testBoard[adjRow][adjCol] === opponentColor) {
-          const opponentGroup = this.getGroup(testBoard, adjRow, adjCol, opponentColor);
-          if (!this.hasLiberties(testBoard, opponentGroup)) {
-            return true; // Legal because it captures
-          }
+      if (this.isInBounds(adjRow, adjCol) && testBoard[adjRow][adjCol] === opponentColor) {
+        const opponentGroup = this.getGroup(testBoard, adjRow, adjCol, opponentColor);
+        if (!this.hasLiberties(testBoard, opponentGroup)) {
+          return true; // Legal - captures opponent
         }
       }
-
-      return false; // Suicide move - illegal
     }
 
-    return true;
+    // Check if placed stone has liberties (not suicide)
+    const placedGroup = this.getGroup(testBoard, row, col, state.currentTurn);
+    return this.hasLiberties(testBoard, placedGroup);
   }
 
   private static isInBounds(row: number, col: number): boolean {
@@ -361,8 +451,8 @@ export class GoGame {
   }
 
   static checkGameEnd(state: GoState): { winner: 'black' | 'white' | 'draw' } | null {
-    if (state.ended) {
-      return { winner: state.winner! };
+    if (state.ended && state.winner) {
+      return { winner: state.winner };
     }
     return null;
   }
