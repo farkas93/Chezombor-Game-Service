@@ -27,7 +27,7 @@ const clients = new Map<string, { ws: WebSocket; player: Player }>();
 
 app.prepare().then(() => {
   console.log('[Server] Next.js app prepared successfully.');
-  
+
   try {
     console.log('[Server] Running database cleanup...');
     cleanupDatabase(db);
@@ -35,7 +35,7 @@ app.prepare().then(() => {
     console.error('[Server] Error during database cleanup:', error);
     // Don't exit - continue with server startup
   }
-  
+
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
       const parsedUrl = parse(req.url!, true);
@@ -169,34 +169,68 @@ app.prepare().then(() => {
             break;
           }
 
+          // In server.ts, update the move case:
+
           case 'move': {
             const session = gameManager.getSession(message.payload.sessionId);
-            if (!session) return;
+            if (!session) {
+              console.warn(`[Server] Session not found: ${message.payload.sessionId}`);
+              return;
+            }
 
-            // MODIFIED: Use game-specific logic
-            const newState = processMove(
-              session.gameType,
-              session.state,
-              message.payload.move
-            );
+            // ADDED: Prevent moves after game has ended
+            if (session.state.ended) {
+              console.warn(`[Server] Game ${session.id} has already ended`);
+              ws.send(JSON.stringify({
+                type: 'error',
+                payload: { message: 'Game has already ended' }
+              }));
+              return;
+            }
+
+            let newState;
+
+            if (message.payload.move.pass) {
+              console.log(`[Server] Player passing in session ${session.id}`);
+              newState = processMove(
+                session.gameType,
+                session.state,
+                { pass: true }
+              );
+            } else {
+              console.log(`[Server] Processing move in session ${session.id}:`, message.payload.move);
+              newState = processMove(
+                session.gameType,
+                session.state,
+                message.payload.move
+              );
+            }
+
             gameManager.updateGameState(session.id, newState);
 
             const updatedSession = gameManager.getSession(session.id);
 
-            updatedSession?.players.forEach(p => {
+            if (!updatedSession) {
+              console.error(`[Server] Failed to get updated session ${session.id}`);
+              return;
+            }
+
+            updatedSession.players.forEach(p => {
               const client = clients.get(p.id);
-              client?.ws.send(JSON.stringify({
-                type: 'game_update',
-                payload: { session: updatedSession },
-              }));
+              if (client) {
+                client.ws.send(JSON.stringify({
+                  type: 'game_update',
+                  payload: { session: updatedSession },
+                }));
+              }
             });
 
-            // MODIFIED: Use game-specific end check
             const gameResult = checkGameEnd(session.gameType, newState);
             if (gameResult) {
-              handleGameEnd(session, gameResult);
+              handleGameEnd(updatedSession, gameResult);
               console.log(`[Server] Game ${session.id} ended. Result:`, gameResult);
             }
+
             break;
           }
 

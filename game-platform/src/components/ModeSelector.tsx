@@ -16,7 +16,7 @@ interface ModeSelectorProps {
 
 export function ModeSelector({ gameType }: ModeSelectorProps) {
   const router = useRouter();
-  const { createGame, player } = useWebSocketContext();
+  const { createGame, findMatch, player } = useWebSocketContext(); // ADDED: findMatch
   const [showLocalDialog, setShowLocalDialog] = useState(false);
   const [player2Name, setPlayer2Name] = useState('');
 
@@ -33,12 +33,13 @@ export function ModeSelector({ gameType }: ModeSelectorProps) {
     // Store player 2 name in session storage for the game to use
     sessionStorage.setItem('player2Name', player2Name);
     
-    createGame(gameType, 'local');
+    createGame(gameType, 'local', player2Name);
     setShowLocalDialog(false);
   };
 
-  const handlePvAI = () => {
-    createGame(gameType, 'pvai');
+  // CHANGED: Use findMatch for online multiplayer (including AI bots)
+  const handleOnlineMultiplayer = () => {
+    findMatch(gameType);
   };
 
   const handleSolo = () => {
@@ -57,7 +58,27 @@ export function ModeSelector({ gameType }: ModeSelectorProps) {
         <h1 className="text-4xl font-bold">{gameTitle}</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        {/* ADDED: Online Multiplayer Card */}
+        {!is2048 && (
+          <Card className="cursor-pointer hover:shadow-lg transition-all" onClick={handleOnlineMultiplayer}>
+            <CardHeader>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+                <Users className="w-8 h-8 text-white" />
+              </div>
+              <CardTitle className="text-center">Online Multiplayer</CardTitle>
+              <CardDescription className="text-center">
+                Play against other players or AI bots online
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" size="lg">
+                Find Match
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {!is2048 && (
           <Card className="cursor-pointer hover:shadow-lg transition-all" onClick={handleLocalPvP}>
             <CardHeader>
@@ -70,27 +91,33 @@ export function ModeSelector({ gameType }: ModeSelectorProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" size="lg">
+              <Button className="w-full" size="lg" variant="secondary">
                 Start Local Game
               </Button>
             </CardContent>
           </Card>
         )}
 
-        <Card className="cursor-pointer hover:shadow-lg transition-all" onClick={is2048 ? handleSolo : handlePvAI}>
+        {/* CHANGED: Solo/2048 mode */}
+        <Card className="cursor-pointer hover:shadow-lg transition-all" onClick={is2048 ? handleSolo : undefined}>
           <CardHeader>
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
               <Bot className="w-8 h-8 text-white" />
             </div>
             <CardTitle className="text-center">
-              {is2048 ? 'Solo Play' : 'Player vs AI'}
+              {is2048 ? 'Solo Play' : 'Practice vs AI'}
             </CardTitle>
             <CardDescription className="text-center">
-              {is2048 ? 'Beat your high score' : 'Play against computer opponent (Coming Soon)'}
+              {is2048 ? 'Beat your high score' : 'Play against built-in AI (Coming Soon)'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" size="lg" variant="secondary" disabled={!is2048}>
+            <Button 
+              className="w-full" 
+              size="lg" 
+              variant="outline" 
+              disabled={!is2048}
+            >
               {is2048 ? 'Start Game' : 'Coming Soon'}
             </Button>
           </CardContent>

@@ -20,6 +20,7 @@ export function GoBoard({ session }: GoBoardProps) {
   const [hoveredSquare, setHoveredSquare] = useState<{ row: number; col: number } | null>(null);
   const [showGameOverDialog, setShowGameOverDialog] = useState(false);
   const [boardKey, setBoardKey] = useState(0);
+  const [showPassPrompt, setShowPassPrompt] = useState(false);
 
   const activeSession = currentSession || session;
   const isLocalGame = activeSession.mode === 'local';
@@ -42,8 +43,29 @@ export function GoBoard({ session }: GoBoardProps) {
   useEffect(() => {
     if (activeSession?.state?.ended) {
       setShowGameOverDialog(true);
+    } else if (activeSession?.state && isMyTurn) {
+      // ADDED: Check if player has any legal moves
+      const hasLegalMoves = checkForLegalMoves();
+      if (!hasLegalMoves && !activeSession.state.ended) {
+        setShowPassPrompt(true);
+      }
     }
-  }, [activeSession?.state?.ended]);
+  }, [activeSession?.state?.ended, activeSession?.state, isMyTurn]);
+
+  const checkForLegalMoves = (): boolean => {
+    if (!board) return false;
+    
+    for (let row = 0; row < 19; row++) {
+      for (let col = 0; col < 19; col++) {
+        if (board[row][col] === null) {
+          // Simple check - if square is empty, it's potentially legal
+          // (Full validation would require checking suicide/ko rules)
+          return true;
+        }
+      }
+    }
+    return false;
+  };
 
   const handleViewRankings = () => {
     setShowGameOverDialog(false);
@@ -59,7 +81,16 @@ export function GoBoard({ session }: GoBoardProps) {
     if (!isMyTurn) return;
     if (board[row][col] !== null) return;
 
+    // Go uses 'row' and 'col' format
     makeMove(activeSession.id, { row, col });
+    setShowPassPrompt(false);
+  };
+
+  const handlePass = () => {
+    if (!isMyTurn) return;
+    // Go pass uses 'pass' flag
+    makeMove(activeSession.id, { pass: true });
+    setShowPassPrompt(false);
   };
 
   const isStarPoint = (row: number, col: number): boolean => {
@@ -100,11 +131,10 @@ export function GoBoard({ session }: GoBoardProps) {
         {stone && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div
-              className={`w-7 h-7 rounded-full shadow-lg ${
-                stone === 'black' 
-                  ? 'bg-slate-900' 
-                  : 'bg-white border-2 border-slate-300'
-              }`}
+              className={`w-7 h-7 rounded-full shadow-lg ${stone === 'black'
+                ? 'bg-slate-900'
+                : 'bg-white border-2 border-slate-300'
+                }`}
             />
           </div>
         )}
@@ -113,11 +143,10 @@ export function GoBoard({ session }: GoBoardProps) {
         {!stone && isHovered && isMyTurn && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div
-              className={`w-7 h-7 rounded-full opacity-50 ${
-                myColor === 'black' 
-                  ? 'bg-slate-900' 
-                  : 'bg-white border-2 border-slate-300'
-              }`}
+              className={`w-7 h-7 rounded-full opacity-50 ${myColor === 'black'
+                ? 'bg-slate-900'
+                : 'bg-white border-2 border-slate-300'
+                }`}
             />
           </div>
         )}
@@ -206,7 +235,34 @@ export function GoBoard({ session }: GoBoardProps) {
               </div>
             </div>
           </div>
-
+          {/* Pass Button */}
+          <div className="flex justify-center">
+            <Button 
+              onClick={handlePass}
+              disabled={!isMyTurn || activeSession?.state?.ended}
+              variant={showPassPrompt ? "default" : "outline"}
+              size="lg"
+              className={`min-w-[200px] ${showPassPrompt ? 'animate-pulse bg-orange-500 hover:bg-orange-600' : ''}`}
+            >
+              {showPassPrompt ? '⚠️ No Legal Moves - Must Pass' : 'Pass'}
+            </Button>
+          </div>
+          {/* ADDED: Pass prompt dialog */}
+          <Dialog open={showPassPrompt && isMyTurn} onOpenChange={setShowPassPrompt}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="text-2xl text-center">No Legal Moves Available</DialogTitle>
+              </DialogHeader>
+              <div className="text-center py-4">
+                <DialogDescription className="text-lg mb-4">
+                  You have no legal moves available. You must pass your turn.
+                </DialogDescription>
+                <Button onClick={handlePass} size="lg" className="w-full">
+                  Pass Turn
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           {/* Game Info */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-slate-100 rounded-lg p-4">

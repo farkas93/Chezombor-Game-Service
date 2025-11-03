@@ -1,6 +1,8 @@
+// src/types/index.ts
+
 export type GameType = 'chess' | 'go' | '2048';
 export type PlayerType = 'human' | 'ai';
-export type GameMode = 'pvp' | 'pvai' | 'local'; // ADDED: 'local' mode
+export type GameMode = 'pvp' | 'pvai' | 'local';
 
 export interface Player {
   id: string;
@@ -29,6 +31,29 @@ export interface ChessState {
   draw: boolean;
   winner: string | null;
 }
+
+// ADDED: Chess move type
+export interface ChessMove {
+  from: string;
+  to: string;
+  promotion?: string;
+}
+
+// ADDED: Go move type
+export interface GoMove {
+  row: number;
+  col: number;
+  color: 'black' | 'white';
+  pass?: boolean;
+}
+
+// ADDED: 2048 move type
+export interface Move2048 {
+  direction: 'up' | 'down' | 'left' | 'right';
+}
+
+// ADDED: Union type for all moves
+export type GameMove = ChessMove | GoMove | Move2048;
 
 export interface EloRating {
   playerId: string;

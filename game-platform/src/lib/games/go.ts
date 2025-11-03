@@ -1,3 +1,6 @@
+// src/lib/games/go.ts
+import { GoMove } from '@/types';
+
 export interface GoState {
   board: (string | null)[][];
   currentTurn: 'black' | 'white';
@@ -8,13 +11,6 @@ export interface GoState {
   winner: 'black' | 'white' | 'draw' | null;
   lastMove: { row: number; col: number } | null;
   koPoint: { row: number; col: number } | null;
-}
-
-export interface GoMove {
-  row: number;
-  col: number;
-  color: 'black' | 'white';
-  pass?: boolean;
 }
 
 export class GoGame {
@@ -33,6 +29,19 @@ export class GoGame {
       koPoint: null,
     };
   }
+  static hasLegalMoves(state: GoState): boolean {
+    const size = this.BOARD_SIZE;
+
+    for (let row = 0; row < size; row++) {
+      for (let col = 0; col < size; col++) {
+        if (this.isValidMove(state, row, col)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
 
   static processMove(state: GoState, move: { row?: number; col?: number; pass?: boolean }): GoState {
     // Handle pass
@@ -42,6 +51,7 @@ export class GoGame {
 
     const { row, col } = move;
     if (row === undefined || col === undefined) {
+      console.warn('[Go] Invalid move: row or col undefined');
       return state;
     }
 
@@ -63,7 +73,7 @@ export class GoGame {
     let newCaptures = { ...state.captures };
     let capturedStones: [number, number][] = [];
 
-    // Check all adjacent opponent groups for captures
+    // IMPORTANT: Only check adjacent opponent groups for immediate capture
     const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     directions.forEach(([dr, dc]) => {
       const adjRow = row + dr;
@@ -71,8 +81,8 @@ export class GoGame {
 
       if (this.isInBounds(adjRow, adjCol) && newBoard[adjRow][adjCol] === opponentColor) {
         const group = this.getGroup(newBoard, adjRow, adjCol, opponentColor);
+        // FIXED: Only capture if group has ZERO liberties (completely surrounded)
         if (!this.hasLiberties(newBoard, group)) {
-          // Capture this group
           group.forEach(([r, c]) => {
             newBoard[r][c] = null;
             capturedStones.push([r, c]);
@@ -86,13 +96,12 @@ export class GoGame {
     const placedStoneGroup = this.getGroup(newBoard, row, col, currentTurn);
     if (!this.hasLiberties(newBoard, placedStoneGroup) && capturedStones.length === 0) {
       console.warn('[Go] Suicide move attempted');
-      return state; // Invalid move
+      return state; // Invalid move - suicide not allowed
     }
 
     // Check for Ko rule violation
     let newKoPoint: { row: number; col: number } | null = null;
     if (capturedStones.length === 1 && placedStoneGroup.length === 1) {
-      // Potential ko situation
       const [capturedRow, capturedCol] = capturedStones[0];
       newKoPoint = { row: capturedRow, col: capturedCol };
     }
@@ -102,7 +111,7 @@ export class GoGame {
       currentTurn: currentTurn === 'black' ? 'white' : 'black',
       captures: newCaptures,
       moveHistory: [...state.moveHistory, { row, col, color: currentTurn }],
-      passCount: 0, // Reset pass count on move
+      passCount: 0,
       ended: false,
       winner: null,
       lastMove: { row, col },
@@ -110,23 +119,28 @@ export class GoGame {
     };
   }
 
+
   private static processPass(state: GoState): GoState {
     const newPassCount = state.passCount + 1;
+
+    console.log(`[Go] Player ${state.currentTurn} passed. Pass count: ${newPassCount}`);
 
     // Game ends when both players pass consecutively
     if (newPassCount >= 2) {
       const winner = this.calculateWinner(state);
+      console.log(`[Go] Game ended by double pass. Winner: ${winner}`);
+
       return {
         ...state,
         passCount: newPassCount,
         ended: true,
         winner,
         currentTurn: state.currentTurn === 'black' ? 'white' : 'black',
-        moveHistory: [...state.moveHistory, { 
-          row: -1, 
-          col: -1, 
-          color: state.currentTurn, 
-          pass: true 
+        moveHistory: [...state.moveHistory, {
+          row: -1,
+          col: -1,
+          color: state.currentTurn,
+          pass: true
         }],
       };
     }
@@ -135,11 +149,11 @@ export class GoGame {
       ...state,
       passCount: newPassCount,
       currentTurn: state.currentTurn === 'black' ? 'white' : 'black',
-      moveHistory: [...state.moveHistory, { 
-        row: -1, 
-        col: -1, 
-        color: state.currentTurn, 
-        pass: true 
+      moveHistory: [...state.moveHistory, {
+        row: -1,
+        col: -1,
+        color: state.currentTurn,
+        pass: true
       }],
     };
   }
@@ -158,6 +172,32 @@ export class GoGame {
     // Check Ko rule
     if (state.koPoint && state.koPoint.row === row && state.koPoint.col === col) {
       return false;
+    }
+
+    const testBoard = state.board.map(r => [...r]);
+    testBoard[row][col] = state.currentTurn;
+
+    const placedGroup = this.getGroup(testBoard, row, col, state.currentTurn);
+    const hasLibs = this.hasLiberties(testBoard, placedGroup);
+
+    if (!hasLibs) {
+      // Check if it captures opponent stones (then it's legal)
+      const opponentColor = state.currentTurn === 'black' ? 'white' : 'black';
+      const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+      for (const [dr, dc] of directions) {
+        const adjRow = row + dr;
+        const adjCol = col + dc;
+
+        if (this.isInBounds(adjRow, adjCol) && testBoard[adjRow][adjCol] === opponentColor) {
+          const opponentGroup = this.getGroup(testBoard, adjRow, adjCol, opponentColor);
+          if (!this.hasLiberties(testBoard, opponentGroup)) {
+            return true; // Legal because it captures
+          }
+        }
+      }
+
+      return false; // Suicide move - illegal
     }
 
     return true;
@@ -210,7 +250,7 @@ export class GoGame {
   private static calculateWinner(state: GoState): 'black' | 'white' | 'draw' {
     // Calculate territory using simple area counting
     const territory = this.calculateTerritory(state.board);
-    
+
     // Score = territory + captures + komi (6.5 for white)
     const komi = 6.5;
     const blackScore = territory.black + state.captures.black;

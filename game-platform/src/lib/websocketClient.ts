@@ -6,17 +6,25 @@ class WebSocketClient {
     private messageListeners: Map<string, Set<(payload: any) => void>> = new Map();
     private connectionStatusListeners: Set<(isConnected: boolean) => void> = new Set();
     private isConnected = false;
+    private reconnectTimeout: NodeJS.Timeout | null = null;
 
     constructor() {
-        // This check ensures this logic runs only once on the client-side
         if (typeof window !== 'undefined') {
             this.connect();
         }
     }
 
     private connect() {
-        if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-            return; // Don't create a new connection if one is already active or connecting
+        // ADDED: Clear any existing reconnect timeout
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+
+        // ADDED: Don't create new connection if already open
+        if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+            console.log('[WSClient] Connection already exists, skipping...');
+            return;
         }
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -33,7 +41,6 @@ class WebSocketClient {
             try {
                 const message: WSMessage = JSON.parse(event.data);
                 console.log('[WSClient] Received:', message);
-                // Notify all listeners for this message type
                 this.messageListeners.get(message.type)?.forEach(handler => handler(message.payload));
             } catch (error) {
                 console.error('[WSClient] Error parsing message:', error);
@@ -44,55 +51,55 @@ class WebSocketClient {
             console.log('[WSClient] Disconnected.');
             this.isConnected = false;
             this.connectionStatusListeners.forEach(listener => listener(false));
-            // Attempt to reconnect after a short delay
-            setTimeout(() => this.connect(), 2000);
+            
+            // ADDED: Only reconnect if not intentionally closed
+            this.reconnectTimeout = setTimeout(() => this.connect(), 2000);
         };
 
         this.ws.onerror = (error) => {
             console.error('[WSClient] Error:', error);
-            this.isConnected = false;
-            this.connectionStatusListeners.forEach(listener => listener(false));
         };
     }
 
     public sendMessage(message: WSMessage) {
-        console.log('[WSClient] Attempting to send:', message); // Add this
-        console.log('[WSClient] WebSocket state:', this.ws?.readyState); // Add this
-        console.log('[WSClient] WebSocket.OPEN constant:', WebSocket.OPEN); // Add this
-        
         if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
-            console.log('[WSClient] Message sent successfully'); // Add this
         } else {
             console.error('[WSClient] Not connected. Cannot send message.');
-            console.error('[WSClient] Current state:', this.ws?.readyState); // Add this
         }
     }
 
-    // Allows React components to subscribe to specific message types
     public onMessage(type: string, handler: (payload: any) => void): () => void {
         if (!this.messageListeners.has(type)) {
             this.messageListeners.set(type, new Set());
         }
         this.messageListeners.get(type)!.add(handler);
 
-        // Return an unsubscribe function
         return () => {
             this.messageListeners.get(type)?.delete(handler);
         };
     }
     
-    // Allows React components to subscribe to the connection status
     public onConnectionStatusChange(listener: (isConnected: boolean) => void): () => void {
         this.connectionStatusListeners.add(listener);
-        listener(this.isConnected); // Immediately notify with current status
+        listener(this.isConnected);
         
-        // Return an unsubscribe function
         return () => {
             this.connectionStatusListeners.delete(listener);
         };
     }
+
+    // ADDED: Method to close connection cleanly
+    public close() {
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+    }
 }
 
-// Create the single instance that the whole app will use
 export const websocketClient = new WebSocketClient();

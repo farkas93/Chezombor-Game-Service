@@ -20,6 +20,9 @@ services:
       - NODE_ENV=development
       - DATABASE_PATH=/app/data/games.db
     restart: unless-stopped
+    networks:
+      - cereneo-net
+
 
 networks:
 # Change if ever not the network we want to use anymore

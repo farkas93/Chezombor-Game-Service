@@ -1,3 +1,4 @@
+//src/app/game/[gameType]
 'use client';
 
 import { useEffect, useState } from 'react';

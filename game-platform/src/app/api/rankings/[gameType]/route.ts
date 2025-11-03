@@ -1,3 +1,4 @@
+//src/app/api/rankings/[gameType]
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
 

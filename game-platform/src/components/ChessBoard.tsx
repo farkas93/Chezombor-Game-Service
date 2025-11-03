@@ -1,15 +1,16 @@
+// src/components/ChessBoard.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Chess, Square } from 'chess.js';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { ArrowLeft, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useWebSocketContext } from '@/providers/WebSocketProvider';
 import { GameSession } from '@/types';
-import { ArrowLeft, Crown, Flag, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Chess } from 'chess.js';
 
 interface ChessBoardProps {
   session: GameSession;
@@ -19,34 +20,33 @@ export function ChessBoard({ session }: ChessBoardProps) {
   const router = useRouter();
   const { makeMove, player, currentSession } = useWebSocketContext();
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
-  const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
   const [chess] = useState(() => new Chess());
-  const [boardKey, setBoardKey] = useState(0);
   const [showGameOverDialog, setShowGameOverDialog] = useState(false);
 
   const activeSession = currentSession || session;
   const isLocalGame = activeSession.mode === 'local';
 
-  // Update chess instance when session state changes
+  const myColor = isLocalGame 
+    ? activeSession.state.currentTurn 
+    : (activeSession.players[0]?.id === player?.id ? 'white' : 'black');
+  const isMyTurn = isLocalGame || activeSession.state.currentTurn === myColor;
+
   useEffect(() => {
     if (activeSession?.state?.fen) {
-      try {
-        chess.load(activeSession.state.fen);
-        setBoardKey(prev => prev + 1);
-      } catch (error) {
-        console.error('[ChessBoard] Error loading FEN:', error);
-      }
+      chess.load(activeSession.state.fen);
     }
   }, [activeSession?.state?.fen, chess]);
-  const handleViewRankings = () => {
-    setShowGameOverDialog(false);
-    router.push('/rankings');
-  };
+
   useEffect(() => {
     if (activeSession?.state?.checkmate || activeSession?.state?.stalemate || activeSession?.state?.draw) {
       setShowGameOverDialog(true);
     }
   }, [activeSession?.state?.checkmate, activeSession?.state?.stalemate, activeSession?.state?.draw]);
+
+  const handleViewRankings = () => {
+    setShowGameOverDialog(false);
+    router.push('/rankings');
+  };
 
   const handleBackToHome = () => {
     setShowGameOverDialog(false);
@@ -54,104 +54,103 @@ export function ChessBoard({ session }: ChessBoardProps) {
   };
 
   const handleSquareClick = (square: string) => {
-    const piece = chess.get(square as any);
+    if (!isMyTurn) return;
 
     if (selectedSquare) {
-      if (possibleMoves.includes(square)) {
+      const possibleMoves = chess.moves({ square: selectedSquare as Square, verbose: true });
+      if (possibleMoves.some(m => m.to === square)) {
         makeMove(activeSession.id, {
           from: selectedSquare,
           to: square
         });
-
         setSelectedSquare(null);
-        setPossibleMoves([]);
-      } else if (piece && piece.color === chess.turn()) {
-        setSelectedSquare(square);
-        const moves = chess.moves({ square: square as any, verbose: true });
-        setPossibleMoves(moves.map(m => m.to));
       } else {
-        setSelectedSquare(null);
-        setPossibleMoves([]);
+        setSelectedSquare(square);
       }
-    } else if (piece && piece.color === chess.turn()) {
+    } else {
       setSelectedSquare(square);
-      const moves = chess.moves({ square: square as any, verbose: true });
-      setPossibleMoves(moves.map(m => m.to));
     }
   };
 
-  const renderSquare = (row: number, col: number) => {
-    const file = String.fromCharCode(97 + col);
-    const rank = 8 - row;
-    const square = `${file}${rank}`;
-    const piece = chess.get(square as any);
-
-    const isLight = (row + col) % 2 === 0;
+  const renderSquare = (square: string, piece: any) => {
+    const file = square.charCodeAt(0) - 97;
+    const rank = 8 - parseInt(square[1]);
+    const isLight = (file + rank) % 2 === 0;
     const isSelected = selectedSquare === square;
-    const isPossibleMove = possibleMoves.includes(square);
 
-    let bgColor = isLight ? 'bg-amber-100' : 'bg-amber-700';
-    if (isSelected) {
-      bgColor = 'bg-yellow-400';
-    } else if (isPossibleMove) {
-      bgColor = isLight ? 'bg-green-200' : 'bg-green-600';
-    }
+    // FIXED: Get possible moves as strings, not Square types
+    const possibleMoves = selectedSquare
+      ? chess.moves({ square: selectedSquare as Square, verbose: true }).map(m => m.to as string)
+      : [];
+    const isPossibleMove = possibleMoves.includes(square);
 
     return (
       <div
         key={square}
-        className={`w-16 h-16 flex items-center justify-center cursor-pointer text-4xl ${bgColor} hover:opacity-80 transition-opacity`}
+        className={`
+          w-16 h-16 flex items-center justify-center cursor-pointer relative
+          ${isLight ? 'bg-amber-100' : 'bg-amber-700'}
+          ${isSelected ? 'ring-4 ring-blue-500' : ''}
+          ${isPossibleMove ? 'ring-2 ring-green-400' : ''}
+        `}
         onClick={() => handleSquareClick(square)}
       >
-        {piece && getPieceSymbol(piece.type, piece.color)}
+        {piece && (
+          <span className="text-5xl select-none">
+            {getPieceSymbol(piece)}
+          </span>
+        )}
+        {isPossibleMove && !piece && (
+          <div className="absolute w-4 h-4 bg-green-400 rounded-full opacity-50" />
+        )}
       </div>
     );
   };
 
-  const getPieceSymbol = (type: string, color: string): string => {
-    const pieces: { [key: string]: { [key: string]: string } } = {
-      k: { w: '♔', b: '♚' },
-      q: { w: '♕', b: '♛' },
-      r: { w: '♖', b: '♜' },
-      b: { w: '♗', b: '♝' },
-      n: { w: '♘', b: '♞' },
-      p: { w: '♙', b: '♟' }
+  const getPieceSymbol = (piece: any) => {
+    const symbols: Record<string, string> = {
+      'wp': '♙', 'wn': '♘', 'wb': '♗', 'wr': '♖', 'wq': '♕', 'wk': '♔',
+      'bp': '♟', 'bn': '♞', 'bb': '♝', 'br': '♜', 'bq': '♛', 'bk': '♚',
     };
-    return pieces[type]?.[color] || '';
+    return symbols[`${piece.color}${piece.type}`] || '';
   };
 
-  const currentTurnColor = activeSession?.state?.currentTurn || 'white';
-  const myColor = isLocalGame ? null : (activeSession.players[0]?.id === player?.id ? 'white' : 'black');
-
-  // ADDED: Get game result for dialog
   const getGameResult = () => {
     if (activeSession?.state?.checkmate) {
-      const winner = activeSession.state.winner;
+      const winner = activeSession.state.currentTurn === 'white' ? 'Black' : 'White';
       if (isLocalGame) {
         return {
           title: 'Checkmate!',
-          description: `${winner === 'white' ? '♔ White' : '♚ Black'} wins!`,
-          icon: <Crown className="w-16 h-16 mx-auto mb-4 text-amber-600" />
+          description: `${winner} wins by checkmate!`,
+          icon: <Trophy className="w-16 h-16 mx-auto mb-4 text-amber-600" />
         };
       } else {
-        const didIWin = winner === myColor;
+        const didIWin = (winner.toLowerCase() === myColor);
         return {
           title: didIWin ? 'Victory!' : 'Defeat',
-          description: didIWin ? 'Checkmate! You won!' : 'Checkmate! You lost.',
-          icon: <Crown className="w-16 h-16 mx-auto mb-4 text-amber-600" />
+          description: didIWin ? 'You won by checkmate!' : 'You lost by checkmate.',
+          icon: <Trophy className="w-16 h-16 mx-auto mb-4 text-amber-600" />
         };
       }
-    } else if (activeSession?.state?.stalemate || activeSession?.state?.draw) {
+    } else if (activeSession?.state?.stalemate) {
+      return {
+        title: 'Stalemate',
+        description: 'The game is a draw by stalemate.',
+        icon: <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+      };
+    } else if (activeSession?.state?.draw) {
       return {
         title: 'Draw',
-        description: activeSession?.state?.stalemate ? 'Stalemate!' : 'Draw by repetition or insufficient material.',
-        icon: <Flag className="w-16 h-16 mx-auto mb-4 text-slate-600" />
+        description: 'The game ended in a draw.',
+        icon: <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-400" />
       };
     }
     return null;
   };
 
   const gameResult = getGameResult();
+
+  const board = chess.board();
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
@@ -164,20 +163,11 @@ export function ChessBoard({ session }: ChessBoardProps) {
               </Button>
               <CardTitle className="text-2xl">♟️ Chess</CardTitle>
             </div>
-            <div className="flex gap-2">
-              {activeSession?.state?.check && (
-                <Badge variant="destructive">Check!</Badge>
-              )}
-              {activeSession?.state?.checkmate && (
-                <Badge className="bg-red-600">Checkmate!</Badge>
-              )}
-            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Player Info */}
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               {isLocalGame ? (
                 <Badge variant="outline">
                   Local Game - Pass & Play
@@ -194,44 +184,46 @@ export function ChessBoard({ session }: ChessBoardProps) {
               )}
             </div>
             <div>
-              <Badge className={currentTurnColor === 'white' ? 'bg-slate-100 text-slate-900' : 'bg-slate-900'}>
-                {currentTurnColor === 'white' ? '♔ White' : '♚ Black'} to move
-              </Badge>
+              {isMyTurn ? (
+                <Badge className="bg-green-500">Your Turn</Badge>
+              ) : (
+                <Badge variant="secondary">Opponent's Turn</Badge>
+              )}
             </div>
           </div>
 
-          {/* Chess Board */}
-          <div className="flex justify-center" key={boardKey}>
-            <div className="inline-block border-4 border-slate-800 rounded-lg overflow-hidden shadow-2xl">
-              {Array.from({ length: 8 }).map((_, row) => (
-                <div key={row} className="flex">
-                  {Array.from({ length: 8 }).map((_, col) => renderSquare(row, col))}
+          <div className="flex justify-center">
+            <div className="inline-block border-4 border-amber-900 rounded-lg overflow-hidden shadow-2xl">
+              {board.map((row, i) => (
+                <div key={i} className="flex">
+                  {row.map((piece, j) => {
+                    const file = String.fromCharCode(97 + j);
+                    const rank = (8 - i).toString();
+                    const square = file + rank;
+                    return renderSquare(square, piece);
+                  })}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Move History */}
-          <div className="bg-slate-100 rounded-lg p-4 max-h-32 overflow-y-auto">
-            <h3 className="font-semibold mb-2">Move History</h3>
-            <div className="text-sm text-muted-foreground">
-              {activeSession?.state?.moveHistory?.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {activeSession.state.moveHistory.map((move: any, idx: number) => (
-                    <div key={idx}>
-                      {Math.floor(idx / 2) + 1}. {move.san}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                'No moves yet'
-              )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-100 rounded-lg p-4">
+              <h3 className="font-semibold mb-2">♔ White</h3>
+              <p className="text-sm text-muted-foreground">
+                {activeSession.players[0]?.name || 'Player 1'}
+              </p>
+            </div>
+            <div className="bg-slate-100 rounded-lg p-4">
+              <h3 className="font-semibold mb-2">♚ Black</h3>
+              <p className="text-sm text-muted-foreground">
+                {activeSession.players[1]?.name || 'Player 2'}
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Game Over Dialog */}
       <Dialog open={showGameOverDialog} onOpenChange={setShowGameOverDialog}>
         <DialogContent>
           <DialogHeader>
@@ -244,7 +236,6 @@ export function ChessBoard({ session }: ChessBoardProps) {
             </DialogDescription>
           </div>
           <div className="flex flex-col gap-2">
-            {/* MODIFIED: Added Rankings button and reorganized layout */}
             <div className="grid grid-cols-2 gap-2">
               <Button onClick={handleBackToHome} variant="default">
                 Back to Home
